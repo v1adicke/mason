@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
 from openai import AsyncOpenAI
@@ -51,48 +52,57 @@ class LLMClient:
         completion = await self._client.chat.completions.create(**completion_payload)
         message = completion.choices[0].message
 
-        if message.tool_calls and self._tool_registry is not None:
-            messages.append(
-                {
-                    "role": "assistant",
-                    "content": message.content or "",
-                    "tool_calls": [
-                        {
-                            "id": call.id,
-                            "type": call.type,
-                            "function": {
-                                "name": call.function.name,
-                                "arguments": call.function.arguments,
-                            },
-                        }
-                        for call in message.tool_calls
-                    ],
-                }
-            )
-
-            for call in message.tool_calls:
-                arguments = self._parse_arguments(call.function.arguments)
-                self._logger.info("Вызов инструмента: %s(%s)", call.function.name, arguments)
-                result = self._tool_registry.execute(call.function.name, arguments)
-                self._logger.info("Результат инструмента %s: %s", call.function.name, result)
+        if self._tool_registry is not None and tools:
+            max_rounds = 5
+            round_index = 0
+            while message.tool_calls and round_index < max_rounds:
+                round_index += 1
                 messages.append(
                     {
-                        "role": "tool",
-                        "tool_call_id": call.id,
-                        "name": call.function.name,
-                        "content": result,
+                        "role": "assistant",
+                        "content": message.content or "",
+                        "tool_calls": [
+                            {
+                                "id": call.id,
+                                "type": call.type,
+                                "function": {
+                                    "name": call.function.name,
+                                    "arguments": call.function.arguments,
+                                },
+                            }
+                            for call in message.tool_calls
+                        ],
                     }
                 )
 
-            follow_up_payload: dict[str, Any] = {
-                "model": model,
-                "messages": messages,
-            }
-            if tools:
-                follow_up_payload["tools"] = tools
+                for call in message.tool_calls:
+                    arguments = self._parse_arguments(call.function.arguments)
+                    if call.function.name == "add_daily_task":
+                        task_text = arguments.get("task_text")
+                        if not isinstance(task_text, str) or not task_text.strip():
+                            fallback_task = self._extract_task_text_from_prompt(prompt)
+                            if fallback_task:
+                                arguments["task_text"] = fallback_task
+                    self._logger.info("Вызов инструмента: %s(%s)", call.function.name, arguments)
+                    result = self._tool_registry.execute(call.function.name, arguments)
+                    self._logger.info("Результат инструмента %s: %s", call.function.name, result)
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": call.id,
+                            "name": call.function.name,
+                            "content": result,
+                        }
+                    )
 
-            follow_up = await self._client.chat.completions.create(**follow_up_payload)
-            return self._extract_text(follow_up.choices[0].message.content)
+                follow_up_payload: dict[str, Any] = {
+                    "model": model,
+                    "messages": messages,
+                    "tools": tools,
+                    "tool_choice": "auto",
+                }
+                follow_up = await self._client.chat.completions.create(**follow_up_payload)
+                message = follow_up.choices[0].message
 
         return self._extract_text(message.content)
 
@@ -110,6 +120,18 @@ class LLMClient:
         if isinstance(payload, dict):
             return payload
         return {}
+
+    @staticmethod
+    def _extract_task_text_from_prompt(prompt: str) -> str | None:
+        """Extract quoted task text from user prompt"""
+        patterns = [r"'([^']+)'", r'"([^"]+)"', r"«([^»]+)»"]
+        for pattern in patterns:
+            match = re.search(pattern, prompt)
+            if match:
+                extracted = match.group(1).strip()
+                if extracted:
+                    return extracted
+        return None
 
     @staticmethod
     def _extract_text(content: Any) -> str:

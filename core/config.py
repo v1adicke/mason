@@ -18,6 +18,7 @@ class Settings:
 
     openai_api_key: str
     openai_base_url: str
+    obsidian_daily_path: str
 
 
 @lru_cache(maxsize=1)
@@ -25,10 +26,17 @@ def get_settings() -> Settings:
     """Load and validate settings from .env and environment"""
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     base_url = os.getenv("OPENAI_BASE_URL", "").strip()
+    obsidian_daily_path = os.getenv("OBSIDIAN_DAILY_PATH", "").strip()
 
     if not api_key:
         raise ValueError("OPENAI_API_KEY is not set")
     if not base_url:
         raise ValueError("OPENAI_BASE_URL is not set")
+    if not obsidian_daily_path:
+        raise ValueError("OBSIDIAN_DAILY_PATH is not set")
 
-    return Settings(openai_api_key=api_key, openai_base_url=base_url)
+    return Settings(
+        openai_api_key=api_key,
+        openai_base_url=base_url,
+        obsidian_daily_path=obsidian_daily_path,
+    )
