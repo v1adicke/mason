@@ -126,10 +126,11 @@ def add_daily_task_tool_schema() -> JSONSchema:
     """Build JSON schema for add_daily_task tool"""
     return {
         "type": "object",
+        "description": "Объект аргументов для add_daily_task",
         "properties": {
             "task_text": {
                 "type": "string",
-                "description": "Текст задачи для добавления в ежедневную заметку",
+                "description": "Обязательный текст задачи для добавления в ежедневную заметку",
             }
         },
         "required": ["task_text"],

@@ -1,45 +1,37 @@
-"""Async wrapper for OpenAI-compatible API"""
+"""Async wrapper for OpenAI compatible API"""
 
 from __future__ import annotations
 
-import json
-import logging
-import re
 from typing import Any
 
 from openai import AsyncOpenAI
 
 from .config import get_settings
-from .tools import ToolRegistry
+
+
+SYSTEM_PROMPT = "Ты ядро локального ассистента. Отвечай кратко."
+ChatMessage = dict[str, Any]
 
 
 class LLMClient:
     """Client for text prompts via chat completions"""
 
-    def __init__(self, tool_registry: ToolRegistry | None = None) -> None:
+    def __init__(self) -> None:
         """Initialize async API client from project settings"""
         settings = get_settings()
         self._client = AsyncOpenAI(
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url,
         )
-        self._tool_registry = tool_registry
-        self._logger = logging.getLogger("mason")
 
     async def ask(
         self,
-        prompt: str,
+        message_history: list[ChatMessage],
         model: str = "gpt-5.3-codex",
         tools: list[dict[str, Any]] | None = None,
-    ) -> str:
-        """Send a prompt and return the assistant response text"""
-        messages: list[dict[str, Any]] = [
-            {
-                "role": "system",
-                "content": "Ты ядро локального ассистента. Отвечай кратко.",
-            },
-            {"role": "user", "content": prompt},
-        ]
+    ) -> ChatMessage:
+        """Send message history and return assistant message payload"""
+        messages: list[ChatMessage] = [{"role": "system", "content": SYSTEM_PROMPT}, *message_history]
 
         completion_payload: dict[str, Any] = {
             "model": model,
@@ -52,86 +44,24 @@ class LLMClient:
         completion = await self._client.chat.completions.create(**completion_payload)
         message = completion.choices[0].message
 
-        if self._tool_registry is not None and tools:
-            max_rounds = 5
-            round_index = 0
-            while message.tool_calls and round_index < max_rounds:
-                round_index += 1
-                messages.append(
-                    {
-                        "role": "assistant",
-                        "content": message.content or "",
-                        "tool_calls": [
-                            {
-                                "id": call.id,
-                                "type": call.type,
-                                "function": {
-                                    "name": call.function.name,
-                                    "arguments": call.function.arguments,
-                                },
-                            }
-                            for call in message.tool_calls
-                        ],
-                    }
-                )
-
-                for call in message.tool_calls:
-                    arguments = self._parse_arguments(call.function.arguments)
-                    if call.function.name == "add_daily_task":
-                        task_text = arguments.get("task_text")
-                        if not isinstance(task_text, str) or not task_text.strip():
-                            fallback_task = self._extract_task_text_from_prompt(prompt)
-                            if fallback_task:
-                                arguments["task_text"] = fallback_task
-                    self._logger.info("Вызов инструмента: %s(%s)", call.function.name, arguments)
-                    result = self._tool_registry.execute(call.function.name, arguments)
-                    self._logger.info("Результат инструмента %s: %s", call.function.name, result)
-                    messages.append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": call.id,
-                            "name": call.function.name,
-                            "content": result,
-                        }
-                    )
-
-                follow_up_payload: dict[str, Any] = {
-                    "model": model,
-                    "messages": messages,
-                    "tools": tools,
-                    "tool_choice": "auto",
+        assistant_message: ChatMessage = {
+            "role": "assistant",
+            "content": self._extract_text(message.content),
+        }
+        if message.tool_calls:
+            assistant_message["tool_calls"] = [
+                {
+                    "id": call.id,
+                    "type": call.type,
+                    "function": {
+                        "name": call.function.name,
+                        "arguments": call.function.arguments,
+                    },
                 }
-                follow_up = await self._client.chat.completions.create(**follow_up_payload)
-                message = follow_up.choices[0].message
+                for call in message.tool_calls
+            ]
 
-        return self._extract_text(message.content)
-
-    @staticmethod
-    def _parse_arguments(raw_arguments: str | None) -> dict[str, Any]:
-        """Parse JSON arguments from tool calls"""
-        if not raw_arguments:
-            return {}
-
-        try:
-            payload = json.loads(raw_arguments)
-        except json.JSONDecodeError:
-            return {}
-
-        if isinstance(payload, dict):
-            return payload
-        return {}
-
-    @staticmethod
-    def _extract_task_text_from_prompt(prompt: str) -> str | None:
-        """Extract quoted task text from user prompt"""
-        patterns = [r"'([^']+)'", r'"([^"]+)"', r"«([^»]+)»"]
-        for pattern in patterns:
-            match = re.search(pattern, prompt)
-            if match:
-                extracted = match.group(1).strip()
-                if extracted:
-                    return extracted
-        return None
+        return assistant_message
 
     @staticmethod
     def _extract_text(content: Any) -> str:
