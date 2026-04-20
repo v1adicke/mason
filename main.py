@@ -15,6 +15,7 @@ from core.tools import ToolRegistry, register_obsidian_daily_tools
 
 ChatMessage = dict[str, Any]
 EXIT_COMMANDS = {"exit", "quit", "выход"}
+CLEAR_COMMANDS = {"/clear"}
 
 
 def _parse_tool_arguments(raw_arguments: Any) -> dict[str, Any]:
@@ -32,7 +33,7 @@ def _parse_tool_arguments(raw_arguments: Any) -> dict[str, Any]:
 
 
 def _extract_last_user_message(history: list[ChatMessage]) -> str:
-    """Return content of the latest user message."""
+    """Return content of the latest user message"""
     for message in reversed(history):
         role = message.get("role")
         content = message.get("content")
@@ -42,7 +43,7 @@ def _extract_last_user_message(history: list[ChatMessage]) -> str:
 
 
 def _extract_iso_date(text: str) -> str | None:
-    """Extract first valid ISO date from message text."""
+    """Extract first valid ISO date from message text"""
     match = re.search(r"\b(\d{4}-\d{2}-\d{2})\b", text)
     if match is None:
         return None
@@ -56,7 +57,7 @@ def _extract_iso_date(text: str) -> str | None:
 
 
 def _resolve_target_date_from_user_message(text: str, now: date | None = None) -> str | None:
-    """Resolve target date from absolute or relative phrases in user text."""
+    """Resolve target date from absolute or relative phrases in user text"""
     source = text.lower().strip()
     if not source:
         return None
@@ -92,7 +93,7 @@ def _resolve_target_date_from_user_message(text: str, now: date | None = None) -
 
 
 def _extract_latest_tool_target_date(executed_tools: list[dict[str, Any]]) -> str | None:
-    """Return latest valid target_date from executed Obsidian tools."""
+    """Return latest valid target_date from executed Obsidian tools"""
     obsidian_tools = {
         "add_daily_task",
         "get_daily_tasks",
@@ -117,7 +118,7 @@ def _extract_latest_tool_target_date(executed_tools: list[dict[str, Any]]) -> st
 
 
 def _normalize_response_dates(text: str, executed_tools: list[dict[str, Any]]) -> str:
-    """Replace any ISO date in assistant text with factual date from tool call."""
+    """Replace any ISO date in assistant text with factual date from tool call"""
     factual_date = _extract_latest_tool_target_date(executed_tools)
     if factual_date is None:
         return text
@@ -126,8 +127,10 @@ def _normalize_response_dates(text: str, executed_tools: list[dict[str, Any]]) -
 
 
 def _build_factual_tool_response(text: str, executed_tools: list[dict[str, Any]]) -> str:
-    """Build deterministic response from executed tool facts when possible."""
-    for event in reversed(executed_tools):
+    """Build deterministic response from all executed tool facts when possible"""
+    factual_messages: list[str] = []
+
+    for event in executed_tools:
         name = event.get("name")
         if name not in {"add_daily_task", "complete_daily_task", "delete_daily_task"}:
             continue
@@ -137,22 +140,32 @@ def _build_factual_tool_response(text: str, executed_tools: list[dict[str, Any]]
         if not isinstance(arguments, dict) or not isinstance(result, str):
             continue
 
-        target_date = arguments.get("target_date")
         task_text = arguments.get("task_text")
-        if not isinstance(target_date, str) or _extract_iso_date(target_date) != target_date:
-            continue
         if not isinstance(task_text, str) or not task_text.strip():
             continue
-
         clean_task = task_text.strip()
-        if name == "add_daily_task" and result.startswith("Задача успешно добавлена"):
-            return f'Задача "{clean_task}" успешно добавлена на {target_date}.'
-        if name == "complete_daily_task" and result.startswith("Задача отмечена как выполненная"):
-            return f'Задача "{clean_task}" отмечена как выполненная на {target_date}.'
-        if name == "delete_daily_task" and result.startswith("Задача удалена"):
-            return f'Задача "{clean_task}" удалена из списка на {target_date}.'
 
-    return text
+        target_date = arguments.get("target_date")
+        date_suffix = ""
+        if isinstance(target_date, str) and _extract_iso_date(target_date) == target_date:
+            date_suffix = f" на {target_date}"
+
+        if name == "add_daily_task" and result.startswith("Задача успешно добавлена"):
+            factual_messages.append(f'Задача "{clean_task}" успешно добавлена{date_suffix}.')
+        if name == "complete_daily_task" and result.startswith("Задача отмечена как выполненная"):
+            factual_messages.append(f'Задача "{clean_task}" отмечена как выполненная{date_suffix}.')
+        if name == "delete_daily_task" and result.startswith("Задача удалена"):
+            factual_messages.append(f'Задача "{clean_task}" удалена из списка{date_suffix}.')
+
+    if not factual_messages:
+        return text
+    if len(factual_messages) == 1:
+        return factual_messages[0]
+
+    lines = [f"Выполнено действий: {len(factual_messages)}."]
+    for message in factual_messages:
+        lines.append(f"- {message}")
+    return "\n".join(lines)
 
 
 async def _resolve_assistant_turn(
@@ -239,9 +252,9 @@ async def _main() -> None:
     register_obsidian_daily_tools(registry)
     client = LLMClient()
     tools = registry.list_schemas()
-    history: list[ChatMessage] = []
+    history = client.history
 
-    logger.info("CLI запущен. Для выхода отправьте: exit | quit | выход")
+    logger.info("CLI запущен. Для выхода отправьте: exit | quit | выход. Очистка памяти: /clear")
     try:
         while True:
             try:
@@ -251,19 +264,32 @@ async def _main() -> None:
 
             if user_input.lower() in EXIT_COMMANDS:
                 break
+            if user_input.lower() in CLEAR_COMMANDS:
+                client.clear_history()
+                history.clear()
+                print("Память очищена")
+                continue
             if not user_input:
                 continue
 
             history.append({"role": "user", "content": user_input})
-            response_text = await _resolve_assistant_turn(
-                client=client,
-                registry=registry,
-                history=history,
-                tools=tools,
-                logger_name="mason",
-            )
+            try:
+                response_text = await _resolve_assistant_turn(
+                    client=client,
+                    registry=registry,
+                    history=history,
+                    tools=tools,
+                    logger_name="mason",
+                )
+            except Exception as error:
+                logger.exception("Ошибка во время обработки запроса")
+                response_text = f"Ошибка во время обработки запроса: {error}"
+                history.append({"role": "assistant", "content": response_text})
+
+            client.save_history(history)
             print(f"Mason: {response_text}")
     finally:
+        client.save_history(history)
         await client.aclose()
 
 
