@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 from typing import Any
 
 from core.llm_client import LLMClient
@@ -28,48 +27,6 @@ def _parse_tool_arguments(raw_arguments: Any) -> dict[str, Any]:
         if isinstance(payload, dict):
             return payload
     return {}
-
-
-def _extract_last_user_message(history: list[ChatMessage]) -> str:
-    """Return content of latest user message"""
-    for message in reversed(history):
-        role = message.get("role")
-        content = message.get("content")
-        if role == "user" and isinstance(content, str):
-            return content
-    return ""
-
-
-def _extract_quoted_text(text: str) -> str | None:
-    """Extract first quoted substring from text"""
-    patterns = [r"'([^']+)'", r'"([^"]+)"', r"«([^»]+)»"]
-    for pattern in patterns:
-        match = re.search(pattern, text)
-        if match:
-            value = match.group(1).strip()
-            if value:
-                return value
-    return None
-
-
-def _extract_task_text_from_user_message(text: str) -> str | None:
-    """Extract task text from natural language command"""
-    quoted = _extract_quoted_text(text)
-    if quoted:
-        return quoted
-
-    patterns = [
-        r"(?i)^\s*добав[ьй]\s+задач[ауи]?\s+(.+?)\s*$",
-        r"(?i)^\s*add\s+task\s+(.+?)\s*$",
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, text)
-        if match:
-            task_text = match.group(1).strip(" .!?\"'")
-            if task_text:
-                return task_text
-
-    return None
 
 
 async def _resolve_assistant_turn(
@@ -108,13 +65,6 @@ async def _resolve_assistant_turn(
             tool_name_raw = function_payload.get("name")
             tool_name = tool_name_raw if isinstance(tool_name_raw, str) else ""
             arguments = _parse_tool_arguments(function_payload.get("arguments"))
-
-            if tool_name == "add_daily_task":
-                task_text = arguments.get("task_text")
-                if not isinstance(task_text, str) or not task_text.strip():
-                    fallback_text = _extract_task_text_from_user_message(_extract_last_user_message(history))
-                    if fallback_text:
-                        arguments["task_text"] = fallback_text
 
             logger.info("Вызов инструмента: %s(%s)", tool_name, arguments)
             if not tool_name:

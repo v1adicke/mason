@@ -9,7 +9,13 @@ from openai import AsyncOpenAI
 from .config import get_settings
 
 
-SYSTEM_PROMPT = "Ты ядро локального ассистента. Отвечай кратко."
+SYSTEM_PROMPT = (
+    "Ты ядро локального ассистента. Отвечай кратко. "
+    "ВАЖНО: Если ты вызываешь инструмент (tool), ты ОБЯЗАН передать ему все требуемые "
+    "аргументы в формате JSON. НИКОГДА не отправляй пустые аргументы {} для "
+    "инструментов add_daily_task, delete_daily_task и complete_daily_task. "
+    "Обязательно извлекай текст задачи из запроса пользователя."
+)
 ChatMessage = dict[str, Any]
 
 
@@ -27,7 +33,7 @@ class LLMClient:
     async def ask(
         self,
         message_history: list[ChatMessage],
-        model: str = "gpt-5.3-codex",
+        model: str = "xiaomi/mimo-v2-flash",
         tools: list[dict[str, Any]] | None = None,
     ) -> ChatMessage:
         """Send message history and return assistant message payload"""

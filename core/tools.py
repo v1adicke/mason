@@ -65,6 +65,80 @@ def get_daily_tasks() -> str:
     return "\n".join(task_lines)
 
 
+def _find_task_line_index(lines: list[str], task_text: str) -> int | None:
+    """Find first checkbox task line that contains task text"""
+    lookup = task_text.lower()
+    for index, line in enumerate(lines):
+        line_lower = line.lower()
+        if "- [ ]" not in line_lower and "- [x]" not in line_lower:
+            continue
+        if lookup in line_lower:
+            return index
+    return None
+
+
+def delete_daily_task(task_text: str = "") -> str:
+    """Delete matching task from today note"""
+    clean_text = task_text.strip()
+    if not clean_text:
+        return "Не удалось удалить задачу: пустой текст задачи"
+
+    try:
+        _, _, note_path = _today_note_path()
+        if not os.path.exists(note_path):
+            return "На сегодня задач пока нет"
+
+        with open(note_path, "r", encoding="utf-8") as file:
+            lines = file.readlines()
+
+        task_index = _find_task_line_index(lines, clean_text)
+        if task_index is None:
+            return "Задача не найдена"
+
+        lines.pop(task_index)
+
+        with open(note_path, "w", encoding="utf-8") as file:
+            file.writelines(lines)
+    except OSError as error:
+        return f"Ошибка файловой системы: {error}"
+
+    return "Задача удалена"
+
+
+def complete_daily_task(task_text: str = "") -> str:
+    """Mark matching task as completed in today note"""
+    clean_text = task_text.strip()
+    if not clean_text:
+        return "Не удалось завершить задачу: пустой текст задачи"
+
+    try:
+        _, _, note_path = _today_note_path()
+        if not os.path.exists(note_path):
+            return "На сегодня задач пока нет"
+
+        with open(note_path, "r", encoding="utf-8") as file:
+            lines = file.readlines()
+
+        task_index = _find_task_line_index(lines, clean_text)
+        if task_index is None:
+            return "Задача не найдена"
+
+        line = lines[task_index]
+        if "- [x]" in line.lower():
+            return "Задача уже завершена"
+        if "- [ ]" not in line:
+            return "Задача не найдена"
+
+        lines[task_index] = line.replace("- [ ]", "- [x]", 1)
+
+        with open(note_path, "w", encoding="utf-8") as file:
+            file.writelines(lines)
+    except OSError as error:
+        return f"Ошибка файловой системы: {error}"
+
+    return "Задача отмечена как выполненная"
+
+
 class ToolRegistry:
     """In memory registry for function tools"""
 
@@ -85,15 +159,48 @@ class ToolRegistry:
         if name in self._handlers:
             raise ValueError(f"Tool '{name}' is already registered")
 
+        normalized_parameters = dict(parameters)
+        normalized_parameters["additionalProperties"] = False
+
         self._handlers[name] = handler
         self._schemas[name] = {
             "type": "function",
             "function": {
                 "name": name,
                 "description": description,
-                "parameters": parameters,
+                "strict": True,
+                "parameters": normalized_parameters,
             },
         }
+
+    def register_schema(self, schema: JSONSchema, handler: ToolHandler) -> None:
+        """Register tool from full OpenAI tool schema"""
+        function_payload = schema.get("function")
+        if not isinstance(function_payload, dict):
+            raise ValueError("Schema must contain function object")
+
+        name = function_payload.get("name")
+        if not isinstance(name, str) or not name:
+            raise ValueError("Function name is required in schema")
+        if name in self._handlers:
+            raise ValueError(f"Tool '{name}' is already registered")
+
+        normalized_function_payload = dict(function_payload)
+        normalized_function_payload["strict"] = True
+
+        parameters = normalized_function_payload.get("parameters")
+        if isinstance(parameters, dict):
+            normalized_parameters = dict(parameters)
+            normalized_parameters["additionalProperties"] = False
+            normalized_function_payload["parameters"] = normalized_parameters
+
+        normalized_schema: JSONSchema = {
+            "type": "function",
+            "function": normalized_function_payload,
+        }
+
+        self._handlers[name] = handler
+        self._schemas[name] = normalized_schema
 
     def list_schemas(self) -> list[JSONSchema]:
         """Return OpenAI-compatible tool schemas"""
@@ -161,4 +268,48 @@ def register_obsidian_daily_tools(registry: ToolRegistry) -> None:
         description="Возвращает незавершенные задачи на сегодня из Obsidian daily note без аргументов",
         parameters=get_daily_tasks_tool_schema(),
         handler=get_daily_tasks,
+    )
+    registry.register_schema(
+        {
+            "type": "function",
+            "function": {
+                "name": "complete_daily_task",
+                "description": "Отмечает задачу как выполненную (заменяет [ ] на [x])",
+                "strict": True,
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "task_text": {
+                            "type": "string",
+                            "description": "Текст задачи, которую нужно отметить",
+                        }
+                    },
+                    "required": ["task_text"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        complete_daily_task,
+    )
+    registry.register_schema(
+        {
+            "type": "function",
+            "function": {
+                "name": "delete_daily_task",
+                "description": "Удаляет задачу из списка на сегодня",
+                "strict": True,
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "task_text": {
+                            "type": "string",
+                            "description": "Текст задачи, которую нужно удалить",
+                        }
+                    },
+                    "required": ["task_text"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        delete_daily_task,
     )
