@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import date, timedelta
+import re
 from typing import Any
 
 from core.llm_client import LLMClient
@@ -29,6 +31,130 @@ def _parse_tool_arguments(raw_arguments: Any) -> dict[str, Any]:
     return {}
 
 
+def _extract_last_user_message(history: list[ChatMessage]) -> str:
+    """Return content of the latest user message."""
+    for message in reversed(history):
+        role = message.get("role")
+        content = message.get("content")
+        if role == "user" and isinstance(content, str):
+            return content
+    return ""
+
+
+def _extract_iso_date(text: str) -> str | None:
+    """Extract first valid ISO date from message text."""
+    match = re.search(r"\b(\d{4}-\d{2}-\d{2})\b", text)
+    if match is None:
+        return None
+
+    date_text = match.group(1)
+    try:
+        date.fromisoformat(date_text)
+    except ValueError:
+        return None
+    return date_text
+
+
+def _resolve_target_date_from_user_message(text: str, now: date | None = None) -> str | None:
+    """Resolve target date from absolute or relative phrases in user text."""
+    source = text.lower().strip()
+    if not source:
+        return None
+
+    explicit_date = _extract_iso_date(source)
+    if explicit_date is not None:
+        return explicit_date
+
+    today = now or date.today()
+    if "послезавтра" in source:
+        return (today + timedelta(days=2)).isoformat()
+    if "завтра" in source:
+        return (today + timedelta(days=1)).isoformat()
+    if "сегодня" in source:
+        return today.isoformat()
+
+    weekday_stems: dict[int, tuple[str, ...]] = {
+        0: ("понедель", "monday"),
+        1: ("вторник", "tuesday"),
+        2: ("сред", "wednesday"),
+        3: ("четвер", "thursday"),
+        4: ("пятниц", "friday"),
+        5: ("суббот", "saturday"),
+        6: ("воскрес", "sunday"),
+    }
+
+    for weekday_index, stems in weekday_stems.items():
+        if any(stem in source for stem in stems):
+            days_ahead = (weekday_index - today.weekday()) % 7
+            return (today + timedelta(days=days_ahead)).isoformat()
+
+    return None
+
+
+def _extract_latest_tool_target_date(executed_tools: list[dict[str, Any]]) -> str | None:
+    """Return latest valid target_date from executed Obsidian tools."""
+    obsidian_tools = {
+        "add_daily_task",
+        "get_daily_tasks",
+        "complete_daily_task",
+        "delete_daily_task",
+    }
+
+    for event in reversed(executed_tools):
+        name = event.get("name")
+        if name not in obsidian_tools:
+            continue
+
+        arguments = event.get("arguments")
+        if not isinstance(arguments, dict):
+            continue
+
+        target_date = arguments.get("target_date")
+        if isinstance(target_date, str) and _extract_iso_date(target_date) == target_date:
+            return target_date
+
+    return None
+
+
+def _normalize_response_dates(text: str, executed_tools: list[dict[str, Any]]) -> str:
+    """Replace any ISO date in assistant text with factual date from tool call."""
+    factual_date = _extract_latest_tool_target_date(executed_tools)
+    if factual_date is None:
+        return text
+
+    return re.sub(r"\b\d{4}-\d{2}-\d{2}\b", factual_date, text)
+
+
+def _build_factual_tool_response(text: str, executed_tools: list[dict[str, Any]]) -> str:
+    """Build deterministic response from executed tool facts when possible."""
+    for event in reversed(executed_tools):
+        name = event.get("name")
+        if name not in {"add_daily_task", "complete_daily_task", "delete_daily_task"}:
+            continue
+
+        arguments = event.get("arguments")
+        result = event.get("result")
+        if not isinstance(arguments, dict) or not isinstance(result, str):
+            continue
+
+        target_date = arguments.get("target_date")
+        task_text = arguments.get("task_text")
+        if not isinstance(target_date, str) or _extract_iso_date(target_date) != target_date:
+            continue
+        if not isinstance(task_text, str) or not task_text.strip():
+            continue
+
+        clean_task = task_text.strip()
+        if name == "add_daily_task" and result.startswith("Задача успешно добавлена"):
+            return f'Задача "{clean_task}" успешно добавлена на {target_date}.'
+        if name == "complete_daily_task" and result.startswith("Задача отмечена как выполненная"):
+            return f'Задача "{clean_task}" отмечена как выполненная на {target_date}.'
+        if name == "delete_daily_task" and result.startswith("Задача удалена"):
+            return f'Задача "{clean_task}" удалена из списка на {target_date}.'
+
+    return text
+
+
 async def _resolve_assistant_turn(
     *,
     client: LLMClient,
@@ -40,6 +166,7 @@ async def _resolve_assistant_turn(
     """Resolve one user turn including tool-call chain"""
     logger = setup_logger(logger_name)
     max_tool_rounds = 6
+    executed_tools: list[dict[str, Any]] = []
 
     for _ in range(max_tool_rounds):
         assistant_message = await client.ask(message_history=history, tools=tools)
@@ -49,6 +176,8 @@ async def _resolve_assistant_turn(
         if not tool_calls:
             content = assistant_message.get("content")
             text = content if isinstance(content, str) else ""
+            text = _normalize_response_dates(text, executed_tools)
+            text = _build_factual_tool_response(text, executed_tools)
             history.append({"role": "assistant", "content": text})
             return text
 
@@ -66,6 +195,18 @@ async def _resolve_assistant_turn(
             tool_name = tool_name_raw if isinstance(tool_name_raw, str) else ""
             arguments = _parse_tool_arguments(function_payload.get("arguments"))
 
+            if tool_name in {
+                "add_daily_task",
+                "get_daily_tasks",
+                "complete_daily_task",
+                "delete_daily_task",
+            }:
+                inferred_target_date = _resolve_target_date_from_user_message(
+                    _extract_last_user_message(history)
+                )
+                if inferred_target_date is not None:
+                    arguments["target_date"] = inferred_target_date
+
             logger.info("Вызов инструмента: %s(%s)", tool_name, arguments)
             if not tool_name:
                 result = "Ошибка вызова инструмента: пустое имя инструмента"
@@ -75,6 +216,7 @@ async def _resolve_assistant_turn(
                 except KeyError as error:
                     result = f"Ошибка вызова инструмента: {error}"
             logger.info("Результат инструмента %s: %s", tool_name, result)
+            executed_tools.append({"name": tool_name, "arguments": dict(arguments), "result": result})
 
             history.append(
                 {

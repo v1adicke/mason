@@ -15,28 +15,66 @@ if TYPE_CHECKING:
     from . import ToolRegistry
 
 
-def _today_note_path() -> tuple[str, str, str]:
-    """Build daily note paths for today"""
+TARGET_DATE_DESCRIPTION = (
+    "The target date in YYYY-MM-DD format. If the user specifies a relative date "
+    "like 'tomorrow', 'next Saturday', or 'on the 15th', you MUST calculate the "
+    "exact YYYY-MM-DD date based on the current system time and pass it here. "
+    "If no date is specified, omit this parameter."
+)
+
+
+def _resolve_date_str(target_date: str | None = None) -> tuple[str | None, str | None]:
+    """Resolve target date or return validation error."""
+    if target_date is None:
+        return datetime.now().date().isoformat(), None
+
+    clean_date = target_date.strip()
+    if not clean_date:
+        return datetime.now().date().isoformat(), None
+
+    try:
+        parsed = datetime.strptime(clean_date, "%Y-%m-%d").date()
+    except ValueError:
+        return None, "Неверный формат даты. Используйте YYYY-MM-DD"
+
+    return parsed.isoformat(), None
+
+
+def _daily_note_path(target_date: str | None = None) -> tuple[str | None, str | None, str | None, str | None]:
+    """Build daily note paths for target date."""
     settings = get_settings()
-    date_str = datetime.now().date().isoformat()
+    date_str, date_error = _resolve_date_str(target_date)
+    if date_error is not None or date_str is None:
+        return settings.obsidian_daily_path, None, None, date_error
+
     note_path = os.path.join(settings.obsidian_daily_path, f"{date_str}.md")
-    return settings.obsidian_daily_path, date_str, note_path
+    return settings.obsidian_daily_path, date_str, note_path, None
 
 
-def add_daily_task(task_text: str = "") -> str:
+def _ensure_daily_note(daily_dir: str, date_str: str, note_path: str) -> None:
+    """Create daily note file with base template if it does not exist."""
+    os.makedirs(daily_dir, exist_ok=True)
+    if not os.path.exists(note_path):
+        with open(note_path, "w", encoding="utf-8") as file:
+            file.write(f"# Задачи на {date_str}\n\n")
+
+
+def add_daily_task(task_text: str = "", target_date: str | None = None) -> str:
     """Append an unchecked task to today Obsidian daily note"""
     clean_text = task_text.strip()
     if not clean_text:
         return "Не удалось добавить задачу: пустой текст задачи"
 
     try:
-        daily_dir, date_str, note_path = _today_note_path()
-        os.makedirs(daily_dir, exist_ok=True)
-        file_exists = os.path.exists(note_path)
+        daily_dir, date_str, note_path, date_error = _daily_note_path(target_date)
+        if date_error is not None:
+            return date_error
+        if daily_dir is None or date_str is None or note_path is None:
+            return "Не удалось добавить задачу: не удалось определить путь заметки"
+
+        _ensure_daily_note(daily_dir, date_str, note_path)
 
         with open(note_path, "a", encoding="utf-8") as file:
-            if not file_exists:
-                file.write(f"# Задачи на {date_str}\n\n")
             file.write(f"- [ ] {clean_text}\n")
     except OSError as error:
         return f"Ошибка файловой системы: {error}"
@@ -44,12 +82,16 @@ def add_daily_task(task_text: str = "") -> str:
     return "Задача успешно добавлена"
 
 
-def get_daily_tasks() -> str:
+def get_daily_tasks(target_date: str | None = None) -> str:
     """Return unchecked tasks from today Obsidian daily note"""
     try:
-        _, _, note_path = _today_note_path()
-        if not os.path.exists(note_path):
-            return "На сегодня задач пока нет"
+        daily_dir, date_str, note_path, date_error = _daily_note_path(target_date)
+        if date_error is not None:
+            return date_error
+        if daily_dir is None or date_str is None or note_path is None:
+            return "Не удалось получить задачи: не удалось определить путь заметки"
+
+        _ensure_daily_note(daily_dir, date_str, note_path)
 
         with open(note_path, "r", encoding="utf-8") as file:
             task_lines = [line.strip() for line in file if "- [ ]" in line]
@@ -74,16 +116,20 @@ def _find_task_line_index(lines: list[str], task_text: str) -> int | None:
     return None
 
 
-def delete_daily_task(task_text: str = "") -> str:
+def delete_daily_task(task_text: str = "", target_date: str | None = None) -> str:
     """Delete matching task from today note"""
     clean_text = task_text.strip()
     if not clean_text:
         return "Не удалось удалить задачу: пустой текст задачи"
 
     try:
-        _, _, note_path = _today_note_path()
-        if not os.path.exists(note_path):
-            return "На сегодня задач пока нет"
+        daily_dir, date_str, note_path, date_error = _daily_note_path(target_date)
+        if date_error is not None:
+            return date_error
+        if daily_dir is None or date_str is None or note_path is None:
+            return "Не удалось удалить задачу: не удалось определить путь заметки"
+
+        _ensure_daily_note(daily_dir, date_str, note_path)
 
         with open(note_path, "r", encoding="utf-8") as file:
             lines = file.readlines()
@@ -102,16 +148,20 @@ def delete_daily_task(task_text: str = "") -> str:
     return "Задача удалена"
 
 
-def complete_daily_task(task_text: str = "") -> str:
+def complete_daily_task(task_text: str = "", target_date: str | None = None) -> str:
     """Mark matching task as completed in today note"""
     clean_text = task_text.strip()
     if not clean_text:
         return "Не удалось завершить задачу: пустой текст задачи"
 
     try:
-        _, _, note_path = _today_note_path()
-        if not os.path.exists(note_path):
-            return "На сегодня задач пока нет"
+        daily_dir, date_str, note_path, date_error = _daily_note_path(target_date)
+        if date_error is not None:
+            return date_error
+        if daily_dir is None or date_str is None or note_path is None:
+            return "Не удалось завершить задачу: не удалось определить путь заметки"
+
+        _ensure_daily_note(daily_dir, date_str, note_path)
 
         with open(note_path, "r", encoding="utf-8") as file:
             lines = file.readlines()
@@ -144,6 +194,10 @@ def add_daily_task_tool_schema() -> JSONSchema:
             "task_text": {
                 "type": "string",
                 "description": "Текст задачи, которую нужно добавить",
+            },
+            "target_date": {
+                "type": "string",
+                "description": TARGET_DATE_DESCRIPTION,
             }
         },
         "required": ["task_text"],
@@ -155,7 +209,12 @@ def get_daily_tasks_tool_schema() -> JSONSchema:
     """Build JSON schema for get_daily_tasks tool"""
     return {
         "type": "object",
-        "properties": {},
+        "properties": {
+            "target_date": {
+                "type": "string",
+                "description": TARGET_DATE_DESCRIPTION,
+            }
+        },
         "required": [],
         "additionalProperties": False,
     }
@@ -169,6 +228,10 @@ def complete_daily_task_tool_schema() -> JSONSchema:
             "task_text": {
                 "type": "string",
                 "description": "Текст задачи, которую нужно отметить",
+            },
+            "target_date": {
+                "type": "string",
+                "description": TARGET_DATE_DESCRIPTION,
             }
         },
         "required": ["task_text"],
@@ -184,6 +247,10 @@ def delete_daily_task_tool_schema() -> JSONSchema:
             "task_text": {
                 "type": "string",
                 "description": "Текст задачи, которую нужно удалить",
+            },
+            "target_date": {
+                "type": "string",
+                "description": TARGET_DATE_DESCRIPTION,
             }
         },
         "required": ["task_text"],
