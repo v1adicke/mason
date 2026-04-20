@@ -14,7 +14,10 @@ SYSTEM_PROMPT = (
     "ВАЖНО: Если ты вызываешь инструмент (tool), ты ОБЯЗАН передать ему все требуемые "
     "аргументы в формате JSON. НИКОГДА не отправляй пустые аргументы {} для "
     "инструментов add_daily_task, delete_daily_task и complete_daily_task. "
-    "Обязательно извлекай текст задачи из запроса пользователя."
+    "Обязательно извлекай текст задачи из запроса пользователя. "
+    "When asked to interact with daily tasks (complete/delete), always act as a "
+    "defensive system: verify the exact task name by reading the task list first if "
+    "you are unsure."
 )
 ChatMessage = dict[str, Any]
 
