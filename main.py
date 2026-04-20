@@ -126,46 +126,22 @@ def _normalize_response_dates(text: str, executed_tools: list[dict[str, Any]]) -
     return re.sub(r"\b\d{4}-\d{2}-\d{2}\b", factual_date, text)
 
 
-def _build_factual_tool_response(text: str, executed_tools: list[dict[str, Any]]) -> str:
-    """Build deterministic response from all executed tool facts when possible"""
-    factual_messages: list[str] = []
-
+def _has_successful_task_action(executed_tools: list[dict[str, Any]]) -> bool:
+    """Return True when at least one task mutation tool finished successfully"""
     for event in executed_tools:
         name = event.get("name")
-        if name not in {"add_daily_task", "complete_daily_task", "delete_daily_task"}:
-            continue
-
-        arguments = event.get("arguments")
         result = event.get("result")
-        if not isinstance(arguments, dict) or not isinstance(result, str):
+        if not isinstance(result, str):
             continue
-
-        task_text = arguments.get("task_text")
-        if not isinstance(task_text, str) or not task_text.strip():
-            continue
-        clean_task = task_text.strip()
-
-        target_date = arguments.get("target_date")
-        date_suffix = ""
-        if isinstance(target_date, str) and _extract_iso_date(target_date) == target_date:
-            date_suffix = f" на {target_date}"
 
         if name == "add_daily_task" and result.startswith("Задача успешно добавлена"):
-            factual_messages.append(f'Задача "{clean_task}" успешно добавлена{date_suffix}.')
+            return True
         if name == "complete_daily_task" and result.startswith("Задача отмечена как выполненная"):
-            factual_messages.append(f'Задача "{clean_task}" отмечена как выполненная{date_suffix}.')
+            return True
         if name == "delete_daily_task" and result.startswith("Задача удалена"):
-            factual_messages.append(f'Задача "{clean_task}" удалена из списка{date_suffix}.')
+            return True
 
-    if not factual_messages:
-        return text
-    if len(factual_messages) == 1:
-        return factual_messages[0]
-
-    lines = [f"Выполнено действий: {len(factual_messages)}."]
-    for message in factual_messages:
-        lines.append(f"- {message}")
-    return "\n".join(lines)
+    return False
 
 
 async def _resolve_assistant_turn(
@@ -190,7 +166,8 @@ async def _resolve_assistant_turn(
             content = assistant_message.get("content")
             text = content if isinstance(content, str) else ""
             text = _normalize_response_dates(text, executed_tools)
-            text = _build_factual_tool_response(text, executed_tools)
+            if not text.strip() and _has_successful_task_action(executed_tools):
+                text = "Готово, сделал."
             history.append({"role": "assistant", "content": text})
             return text
 
