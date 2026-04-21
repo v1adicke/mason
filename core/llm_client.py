@@ -61,6 +61,10 @@ SYSTEM_PROMPT = (
     "- Не используй диапазоны в формате 10:00 - 11:20, вместо этого пиши: с десяти утра до одиннадцати двадцати.\n"
     "- Любые списки превращай в связный текст с вводными словами сначала затем после этого далее.\n"
     "- Всегда раскрывай сокращения в полные слова, например лекция и аудитория.\n\n"
+    "CONTEXT AND TIME INFERENCE (CRITICAL):\n"
+    "- Always base your target_date calculations on the injected SYSTEM TIME CONTEXT.\n"
+    "- If the user says 'tomorrow', explicitly calculate the date based on the logical date provided in the context.\n"
+    "- If the user makes a follow-up request using relative terms like 'after classes', 'then', or 'add a task', you MUST inherit the target_date from the immediately preceding conversational context. Do not default to today if the previous turn was about tomorrow.\n\n"
     "TOOL-CALLING RULES (MANDATORY FOR EXECUTION CORRECTNESS):\n"
     "- If you call a tool, always provide all required arguments in valid JSON.\n"
     "- NEVER send empty {} arguments for add_daily_task, delete_daily_task, "
@@ -102,7 +106,7 @@ def _build_system_time_context() -> str:
 
 
 def _build_system_prompt() -> str:
-    """Compose full system prompt with dynamic server-time context."""
+    """Compose full system prompt with dynamic server-time context"""
     return f"{_build_system_time_context()}\n\n{SYSTEM_PROMPT}"
 
 

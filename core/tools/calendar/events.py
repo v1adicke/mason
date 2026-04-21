@@ -20,7 +20,7 @@ MSK_TZ = tz.gettz("Europe/Moscow")
 
 
 def _resolve_day_bounds_caldav(target_date: str) -> tuple[datetime | None, datetime | None, str | None]:
-    """Resolve YYYY-MM-DD into day bounds in Europe/Moscow for CalDAV date_search."""
+    """Resolve YYYY-MM-DD into day bounds in Europe/Moscow for CalDAV date_search"""
     clean_date = target_date.strip()
     if not clean_date:
         return None, None, "Неверный формат даты. Используйте YYYY-MM-DD"
@@ -159,10 +159,14 @@ def get_calendar_events(target_date: str = "") -> str:
                 all_events.extend(calendar_events)
 
         payload: list[dict[str, str]] = []
+        seen_ids = set()
         for event in all_events:
             event_payload = _event_payload(event)
             if event_payload is not None:
-                payload.append(event_payload)
+                event_id = str(event_payload.get("id", ""))
+                if event_id not in seen_ids:
+                    seen_ids.add(event_id)
+                    payload.append(event_payload)
 
         if not payload:
             return f"События на {target_date} не найдены. Ошибки: {debug_errors}" if debug_errors else f"События на {target_date} не найдены"
@@ -267,15 +271,24 @@ def delete_calendar_event(event_id: str = "") -> str:
     clients: list[Any] = []
     try:
         clients = get_caldav_clients()
-        calendar = get_primary_calendar(clients[0])
-        event, find_error = _find_event_by_id(calendar, clean_event_id)
-        if find_error is not None:
-            return find_error
-        if event is None:
-            return "Событие не найдено"
+        for client in clients:
+            try:
+                calendars = client.principal().calendars()
+            except Exception:
+                continue
 
-        event.delete()
-        return "Событие удалено"
+            for cal in calendars:
+                event, _ = _find_event_by_id(cal, clean_event_id)
+                if event is None:
+                    continue
+
+                try:
+                    event.delete()
+                    return "Событие удалено"
+                except Exception:
+                    continue
+
+        return "Событие не найдено ни в одном из календарей (или нет прав на удаление)"
     except Exception as error:
         return f"Ошибка подключения к CalDAV: {error}"
     finally:
