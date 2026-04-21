@@ -100,6 +100,15 @@ from .obsidian import (
     get_daily_tasks_tool_schema,
     register_obsidian_daily_tools,
 )
+from .calendar import (
+    add_calendar_event,
+    add_calendar_event_tool_schema,
+    delete_calendar_event,
+    delete_calendar_event_tool_schema,
+    get_calendar_events,
+    get_calendar_events_tool_schema,
+    register_calendar_tools,
+)
 from .system import get_system_time, register_system_tools, system_time_tool_schema
 
 
@@ -119,4 +128,11 @@ __all__ = [
     "complete_daily_task_tool_schema",
     "delete_daily_task_tool_schema",
     "register_obsidian_daily_tools",
+    "get_calendar_events",
+    "add_calendar_event",
+    "delete_calendar_event",
+    "get_calendar_events_tool_schema",
+    "add_calendar_event_tool_schema",
+    "delete_calendar_event_tool_schema",
+    "register_calendar_tools",
 ]

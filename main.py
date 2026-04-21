@@ -4,18 +4,25 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 import re
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from core.llm_client import LLMClient
 from core.logger import setup_logger
-from core.tools import ToolRegistry, register_obsidian_daily_tools
+from core.tools import ToolRegistry, register_calendar_tools, register_obsidian_daily_tools
 
 
 ChatMessage = dict[str, Any]
 EXIT_COMMANDS = {"exit", "quit", "выход"}
 CLEAR_COMMANDS = {"/clear"}
+
+
+try:
+    MSK_TZ = ZoneInfo("Europe/Moscow")
+except Exception:
+    MSK_TZ = timezone(timedelta(hours=3))
 
 
 def _parse_tool_arguments(raw_arguments: Any) -> dict[str, Any]:
@@ -92,6 +99,13 @@ def _resolve_target_date_from_user_message(text: str, now: date | None = None) -
     return None
 
 
+def _logical_today_date() -> date:
+    """Return user logical today date in MSK with late-night offset."""
+    now = datetime.now(MSK_TZ)
+    logical_today = now - timedelta(days=1) if now.hour < 4 else now
+    return logical_today.date()
+
+
 def _extract_latest_tool_target_date(executed_tools: list[dict[str, Any]]) -> str | None:
     """Return latest valid target_date from executed Obsidian tools"""
     obsidian_tools = {
@@ -127,7 +141,7 @@ def _normalize_response_dates(text: str, executed_tools: list[dict[str, Any]]) -
 
 
 def _has_successful_task_action(executed_tools: list[dict[str, Any]]) -> bool:
-    """Return True when at least one task mutation tool finished successfully"""
+    """Return True when at least one mutation tool finished successfully"""
     for event in executed_tools:
         name = event.get("name")
         result = event.get("result")
@@ -139,6 +153,10 @@ def _has_successful_task_action(executed_tools: list[dict[str, Any]]) -> bool:
         if name == "complete_daily_task" and result.startswith("Задача отмечена как выполненная"):
             return True
         if name == "delete_daily_task" and result.startswith("Задача удалена"):
+            return True
+        if name == "add_calendar_event" and result.startswith("Событие добавлено"):
+            return True
+        if name == "delete_calendar_event" and result.startswith("Событие удалено"):
             return True
 
     return False
@@ -156,6 +174,11 @@ async def _resolve_assistant_turn(
     logger = setup_logger(logger_name)
     max_tool_rounds = 6
     executed_tools: list[dict[str, Any]] = []
+    last_user_message = _extract_last_user_message(history)
+    logical_today = _logical_today_date()
+    inferred_target_date = _resolve_target_date_from_user_message(last_user_message, now=logical_today)
+    shared_target_date = inferred_target_date or logical_today.isoformat()
+    shared_schedule_target_date: str | None = None
 
     for _ in range(max_tool_rounds):
         assistant_message = await client.ask(message_history=history, tools=tools)
@@ -190,12 +213,14 @@ async def _resolve_assistant_turn(
                 "get_daily_tasks",
                 "complete_daily_task",
                 "delete_daily_task",
+                "get_calendar_events",
             }:
-                inferred_target_date = _resolve_target_date_from_user_message(
-                    _extract_last_user_message(history)
-                )
-                if inferred_target_date is not None:
-                    arguments["target_date"] = inferred_target_date
+                if tool_name in {"get_daily_tasks", "get_calendar_events"}:
+                    if shared_schedule_target_date is None:
+                        shared_schedule_target_date = shared_target_date
+                    arguments["target_date"] = shared_schedule_target_date
+                else:
+                    arguments["target_date"] = shared_target_date
 
             logger.info("Вызов инструмента: %s(%s)", tool_name, arguments)
             if not tool_name:
@@ -227,6 +252,7 @@ async def _main() -> None:
     logger = setup_logger()
     registry = ToolRegistry()
     register_obsidian_daily_tools(registry)
+    register_calendar_tools(registry)
     client = LLMClient()
     tools = registry.list_schemas()
     history = client.history
