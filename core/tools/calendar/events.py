@@ -2,40 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from datetime import timedelta
 import json
 from typing import Any
-
-from dateutil import tz
 
 from .io import close_client_safely
 from .io import get_caldav_clients
 from .io import get_primary_calendar
-from .io import parse_iso_datetime_msk
-from .io import to_iso_msk
-
-
-MSK_TZ = tz.gettz("Europe/Moscow")
-
-
-def _resolve_day_bounds_caldav(target_date: str) -> tuple[datetime | None, datetime | None, str | None]:
-    """Resolve YYYY-MM-DD into day bounds in Europe/Moscow for CalDAV date_search"""
-    clean_date = target_date.strip()
-    if not clean_date:
-        return None, None, "Неверный формат даты. Используйте YYYY-MM-DD"
-
-    try:
-        parsed = datetime.strptime(clean_date, "%Y-%m-%d")
-    except ValueError:
-        return None, None, "Неверный формат даты. Используйте YYYY-MM-DD"
-
-    if MSK_TZ is None:
-        return None, None, "Не удалось определить часовой пояс Europe/Moscow"
-
-    start_of_day = datetime(parsed.year, parsed.month, parsed.day, tzinfo=MSK_TZ)
-    end_of_day = start_of_day + timedelta(days=1)
-    return start_of_day, end_of_day, None
+from .io import parse_iso_datetime
+from .io import resolve_day_bounds
+from .io import to_iso
 
 
 def _safe_event_load(event: Any) -> None:
@@ -120,8 +95,8 @@ def _event_payload(event: Any) -> dict[str, str] | None:
     return {
         "id": event_id,
         "summary": summary,
-        "start": to_iso_msk(dtstart),
-        "end": to_iso_msk(dtend),
+        "start": to_iso(dtstart),
+        "end": to_iso(dtend),
     }
 
 
@@ -133,7 +108,7 @@ def _calendar_events_by_day(calendar: Any, start: Any, end: Any) -> list[Any]:
 
 def get_calendar_events(target_date: str = "") -> str:
     """Return calendar events for target date (YYYY-MM-DD)"""
-    start_dt, end_dt, date_error = _resolve_day_bounds_caldav(target_date)
+    start_dt, end_dt, date_error = resolve_day_bounds(target_date)
     if date_error is not None:
         return date_error
     if start_dt is None or end_dt is None:
@@ -190,10 +165,10 @@ def add_calendar_event(
     if not clean_summary:
         return "Не удалось добавить событие: пустой summary"
 
-    start_value, start_error = parse_iso_datetime_msk(start_dt)
+    start_value, start_error = parse_iso_datetime(start_dt)
     if start_error is not None:
         return start_error
-    end_value, end_error = parse_iso_datetime_msk(end_dt)
+    end_value, end_error = parse_iso_datetime(end_dt)
     if end_error is not None:
         return end_error
     if start_value is None or end_value is None:
@@ -254,7 +229,7 @@ def _find_event_by_id(calendar: Any, event_id: str) -> tuple[Any | None, str | N
 
     if len(matches) > 1:
         options = [_event_identifiers(event)[0] for event in matches if _event_identifiers(event)]
-        return None, f"Error: Multiple matching events found. Please specify event_id exactly. {options}"
+        return None, f"Найдено несколько событий, уточни точный ID: {options}"
 
     return matches[0], None
 

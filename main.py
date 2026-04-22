@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import date, datetime, timedelta, timezone
+from datetime import date
 import re
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from core.llm_client import LLMClient
 from core.logger import setup_logger
@@ -17,12 +16,6 @@ from core.tools import ToolRegistry, register_calendar_tools, register_obsidian_
 ChatMessage = dict[str, Any]
 EXIT_COMMANDS = {"exit", "quit", "выход"}
 CLEAR_COMMANDS = {"/clear"}
-
-
-try:
-    MSK_TZ = ZoneInfo("Europe/Moscow")
-except Exception:
-    MSK_TZ = timezone(timedelta(hours=3))
 
 
 def _parse_tool_arguments(raw_arguments: Any) -> dict[str, Any]:
@@ -39,16 +32,6 @@ def _parse_tool_arguments(raw_arguments: Any) -> dict[str, Any]:
     return {}
 
 
-def _extract_last_user_message(history: list[ChatMessage]) -> str:
-    """Return content of the latest user message"""
-    for message in reversed(history):
-        role = message.get("role")
-        content = message.get("content")
-        if role == "user" and isinstance(content, str):
-            return content
-    return ""
-
-
 def _extract_iso_date(text: str) -> str | None:
     """Extract first valid ISO date from message text"""
     match = re.search(r"\b(\d{4}-\d{2}-\d{2})\b", text)
@@ -61,49 +44,6 @@ def _extract_iso_date(text: str) -> str | None:
     except ValueError:
         return None
     return date_text
-
-
-def _resolve_target_date_from_user_message(text: str, now: date | None = None) -> str | None:
-    """Resolve target date from absolute or relative phrases in user text"""
-    source = text.lower().strip()
-    if not source:
-        return None
-
-    explicit_date = _extract_iso_date(source)
-    if explicit_date is not None:
-        return explicit_date
-
-    today = now or date.today()
-    if "послезавтра" in source:
-        return (today + timedelta(days=2)).isoformat()
-    if "завтра" in source:
-        return (today + timedelta(days=1)).isoformat()
-    if "сегодня" in source:
-        return today.isoformat()
-
-    weekday_stems: dict[int, tuple[str, ...]] = {
-        0: ("понедель", "monday"),
-        1: ("вторник", "tuesday"),
-        2: ("сред", "wednesday"),
-        3: ("четвер", "thursday"),
-        4: ("пятниц", "friday"),
-        5: ("суббот", "saturday"),
-        6: ("воскрес", "sunday"),
-    }
-
-    for weekday_index, stems in weekday_stems.items():
-        if any(stem in source for stem in stems):
-            days_ahead = (weekday_index - today.weekday()) % 7
-            return (today + timedelta(days=days_ahead)).isoformat()
-
-    return None
-
-
-def _logical_today_date() -> date:
-    """Return user logical today date in MSK with late-night offset."""
-    now = datetime.now(MSK_TZ)
-    logical_today = now - timedelta(days=1) if now.hour < 4 else now
-    return logical_today.date()
 
 
 def _extract_latest_tool_target_date(executed_tools: list[dict[str, Any]]) -> str | None:
@@ -174,11 +114,6 @@ async def _resolve_assistant_turn(
     logger = setup_logger(logger_name)
     max_tool_rounds = 6
     executed_tools: list[dict[str, Any]] = []
-    last_user_message = _extract_last_user_message(history)
-    logical_today = _logical_today_date()
-    inferred_target_date = _resolve_target_date_from_user_message(last_user_message, now=logical_today)
-    shared_target_date = inferred_target_date or logical_today.isoformat()
-    shared_schedule_target_date: str | None = None
 
     for _ in range(max_tool_rounds):
         assistant_message = await client.ask(message_history=history, tools=tools)
@@ -207,20 +142,6 @@ async def _resolve_assistant_turn(
             tool_name_raw = function_payload.get("name")
             tool_name = tool_name_raw if isinstance(tool_name_raw, str) else ""
             arguments = _parse_tool_arguments(function_payload.get("arguments"))
-
-            if tool_name in {
-                "add_daily_task",
-                "get_daily_tasks",
-                "complete_daily_task",
-                "delete_daily_task",
-                "get_calendar_events",
-            }:
-                if tool_name in {"get_daily_tasks", "get_calendar_events"}:
-                    if shared_schedule_target_date is None:
-                        shared_schedule_target_date = shared_target_date
-                    arguments["target_date"] = shared_schedule_target_date
-                else:
-                    arguments["target_date"] = shared_target_date
 
             logger.info("Вызов инструмента: %s(%s)", tool_name, arguments)
             if not tool_name:

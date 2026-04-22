@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
 from typing import TYPE_CHECKING, Any
+from zoneinfo import ZoneInfo
+
+from ..config import get_settings
 
 
 JSONSchema = dict[str, Any]
@@ -14,7 +19,12 @@ if TYPE_CHECKING:
 
 def get_system_time() -> str:
     """Return current local time"""
-    return datetime.now().astimezone().isoformat(timespec="seconds")
+    settings = get_settings()
+    try:
+        tz_value = ZoneInfo(settings.mason_timezone)
+    except Exception:
+        tz_value = timezone(timedelta(hours=3))
+    return datetime.now(tz_value).isoformat(timespec="seconds")
 
 
 def system_time_tool_schema() -> JSONSchema:

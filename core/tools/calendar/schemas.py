@@ -6,6 +6,7 @@ from typing import Any
 
 
 JSONSchema = dict[str, Any]
+ISO_DATE_PATTERN = r"^\d{4}-\d{2}-\d{2}$"
 
 RELATIVE_TIME_DESCRIPTION = (
     "If the user says 'tomorrow at 2 PM', calculate the exact ISO timestamp "
@@ -34,6 +35,7 @@ def get_calendar_events_tool_schema() -> JSONSchema:
             "target_date": {
                 "type": "string",
                 "description": TARGET_DATE_DESCRIPTION,
+                "pattern": ISO_DATE_PATTERN,
             }
         },
         "required": ["target_date"],

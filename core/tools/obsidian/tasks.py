@@ -12,6 +12,9 @@ from .io import _ensure_daily_note
 from .io import _note_path_by_date
 
 
+MIN_MATCH_SCORE = 0.6
+
+
 def add_daily_task(task_text: str = "", target_date: str | None = None) -> str:
     """Append an unchecked task to today Obsidian daily note"""
     clean_text = task_text.strip()
@@ -115,11 +118,57 @@ def _find_task_matches(lines: list[str], task_text: str) -> list[tuple[int, str,
 
         candidate = _extract_task_text(line)
         score = _task_match_score(task_text, candidate)
-        if score >= 0.6:
+        if score >= MIN_MATCH_SCORE:
             matches.append((index, candidate, score))
 
     matches.sort(key=lambda item: item[2], reverse=True)
     return matches
+
+
+def _find_best_task_match(task_text: str, target_date: str | None) -> tuple[str, int, list[str]] | str:
+    """Find best matching task and return note path, line index and file lines."""
+    dates, date_error = _candidate_dates(target_date)
+    if date_error is not None:
+        return date_error
+    if dates is None:
+        return "Не удалось определить дату для поиска задачи"
+
+    all_matches: list[tuple[str, str, int, float]] = []
+    file_lines_by_date: dict[str, list[str]] = {}
+    note_path_by_date: dict[str, str] = {}
+
+    for candidate_date in dates:
+        daily_dir, note_path = _note_path_by_date(candidate_date)
+        if target_date is not None and target_date.strip():
+            _ensure_daily_note(daily_dir, candidate_date, note_path)
+        if not os.path.exists(note_path):
+            continue
+
+        with open(note_path, "r", encoding="utf-8") as file:
+            lines = file.readlines()
+
+        file_lines_by_date[candidate_date] = lines
+        note_path_by_date[candidate_date] = note_path
+
+        for index, candidate_text, score in _find_task_matches(lines, task_text):
+            all_matches.append((candidate_date, candidate_text, index, score))
+
+    if not all_matches:
+        return "Задача не найдена"
+
+    all_matches.sort(key=lambda item: item[3], reverse=True)
+    best_score = all_matches[0][3]
+    best_matches = [item for item in all_matches if abs(item[3] - best_score) < 1e-9]
+
+    if len(best_matches) > 1:
+        task_options = [
+            f"[{match_date}] {task_text_candidate}"
+            for match_date, task_text_candidate, _, _ in best_matches
+        ]
+        return f"Нашел несколько похожих задач, уточни какую именно: {task_options}"
+
+    match_date, _, task_index, _ = best_matches[0]
+    return note_path_by_date[match_date], task_index, file_lines_by_date[match_date]
 
 
 def delete_daily_task(task_text: str = "", target_date: str | None = None) -> str:
@@ -129,48 +178,14 @@ def delete_daily_task(task_text: str = "", target_date: str | None = None) -> st
         return "Не удалось удалить задачу: пустой текст задачи"
 
     try:
-        dates, date_error = _candidate_dates(target_date)
-        if date_error is not None:
-            return date_error
-        if dates is None:
-            return "Не удалось удалить задачу: не удалось определить диапазон дат"
+        match_result = _find_best_task_match(clean_text, target_date)
+        if isinstance(match_result, str):
+            return match_result
 
-        all_matches: list[tuple[str, str, int, float]] = []
-        file_lines_by_date: dict[str, list[str]] = {}
-        note_path_by_date: dict[str, str] = {}
-
-        for candidate_date in dates:
-            daily_dir, note_path = _note_path_by_date(candidate_date)
-            if target_date is not None and target_date.strip():
-                _ensure_daily_note(daily_dir, candidate_date, note_path)
-            if not os.path.exists(note_path):
-                continue
-
-            with open(note_path, "r", encoding="utf-8") as file:
-                lines = file.readlines()
-
-            file_lines_by_date[candidate_date] = lines
-            note_path_by_date[candidate_date] = note_path
-
-            for index, candidate_text, score in _find_task_matches(lines, clean_text):
-                all_matches.append((candidate_date, candidate_text, index, score))
-
-        if not all_matches:
-            return "Задача не найдена"
-
-        all_matches.sort(key=lambda item: item[3], reverse=True)
-        best_score = all_matches[0][3]
-        best_matches = [item for item in all_matches if abs(item[3] - best_score) < 1e-9]
-
-        if len(best_matches) > 1:
-            task_options = [f"[{match_date}] {task_text_candidate}" for match_date, task_text_candidate, _, _ in best_matches]
-            return f"Error: Multiple matching tasks found. Please specify. {task_options}"
-
-        match_date, _, task_index, _ = best_matches[0]
-        lines = file_lines_by_date[match_date]
+        note_path, task_index, lines = match_result
         lines.pop(task_index)
 
-        with open(note_path_by_date[match_date], "w", encoding="utf-8") as file:
+        with open(note_path, "w", encoding="utf-8") as file:
             file.writelines(lines)
     except OSError as error:
         return f"Ошибка файловой системы: {error}"
@@ -185,45 +200,11 @@ def complete_daily_task(task_text: str = "", target_date: str | None = None) -> 
         return "Не удалось завершить задачу: пустой текст задачи"
 
     try:
-        dates, date_error = _candidate_dates(target_date)
-        if date_error is not None:
-            return date_error
-        if dates is None:
-            return "Не удалось завершить задачу: не удалось определить диапазон дат"
+        match_result = _find_best_task_match(clean_text, target_date)
+        if isinstance(match_result, str):
+            return match_result
 
-        all_matches: list[tuple[str, str, int, float]] = []
-        file_lines_by_date: dict[str, list[str]] = {}
-        note_path_by_date: dict[str, str] = {}
-
-        for candidate_date in dates:
-            daily_dir, note_path = _note_path_by_date(candidate_date)
-            if target_date is not None and target_date.strip():
-                _ensure_daily_note(daily_dir, candidate_date, note_path)
-            if not os.path.exists(note_path):
-                continue
-
-            with open(note_path, "r", encoding="utf-8") as file:
-                lines = file.readlines()
-
-            file_lines_by_date[candidate_date] = lines
-            note_path_by_date[candidate_date] = note_path
-
-            for index, candidate_text, score in _find_task_matches(lines, clean_text):
-                all_matches.append((candidate_date, candidate_text, index, score))
-
-        if not all_matches:
-            return "Задача не найдена"
-
-        all_matches.sort(key=lambda item: item[3], reverse=True)
-        best_score = all_matches[0][3]
-        best_matches = [item for item in all_matches if abs(item[3] - best_score) < 1e-9]
-
-        if len(best_matches) > 1:
-            task_options = [f"[{match_date}] {task_text_candidate}" for match_date, task_text_candidate, _, _ in best_matches]
-            return f"Error: Multiple matching tasks found. Please specify. {task_options}"
-
-        match_date, _, task_index, _ = best_matches[0]
-        lines = file_lines_by_date[match_date]
+        note_path, task_index, lines = match_result
 
         line = lines[task_index]
         if "- [x]" in line.lower():
@@ -233,7 +214,7 @@ def complete_daily_task(task_text: str = "", target_date: str | None = None) -> 
 
         lines[task_index] = line.replace("- [ ]", "- [x]", 1)
 
-        with open(note_path_by_date[match_date], "w", encoding="utf-8") as file:
+        with open(note_path, "w", encoding="utf-8") as file:
             file.writelines(lines)
     except OSError as error:
         return f"Ошибка файловой системы: {error}"

@@ -3,23 +3,18 @@
 from __future__ import annotations
 
 from datetime import datetime
-from datetime import timedelta
 import os
 
 from ...config import get_settings
 
-
-DEFAULT_FORWARD_SCAN_DAYS = 14
-
-
 def _resolve_date_str(target_date: str | None = None) -> tuple[str | None, str | None]:
     """Resolve target date or return validation error"""
     if target_date is None:
-        return datetime.now().date().isoformat(), None
+        return None, "Не указана дата. Передай target_date в формате YYYY-MM-DD"
 
     clean_date = target_date.strip()
     if not clean_date:
-        return datetime.now().date().isoformat(), None
+        return None, "Не указана дата. Передай target_date в формате YYYY-MM-DD"
 
     try:
         parsed = datetime.strptime(clean_date, "%Y-%m-%d").date()
@@ -40,17 +35,12 @@ def _daily_note_path(target_date: str | None = None) -> tuple[str | None, str | 
     return settings.obsidian_daily_path, date_str, note_path, None
 
 
-def _candidate_dates(target_date: str | None = None, days_forward: int = DEFAULT_FORWARD_SCAN_DAYS) -> tuple[list[str] | None, str | None]:
+def _candidate_dates(target_date: str | None = None) -> tuple[list[str] | None, str | None]:
     """Build candidate date list for task scanning"""
-    if target_date is not None and target_date.strip():
-        date_str, date_error = _resolve_date_str(target_date)
-        if date_error is not None or date_str is None:
-            return None, date_error
-        return [date_str], None
-
-    today = datetime.now().date()
-    dates = [(today + timedelta(days=offset)).isoformat() for offset in range(days_forward + 1)]
-    return dates, None
+    date_str, date_error = _resolve_date_str(target_date)
+    if date_error is not None or date_str is None:
+        return None, date_error
+    return [date_str], None
 
 
 def _note_path_by_date(date_str: str) -> tuple[str, str]:

@@ -6,12 +6,12 @@ from typing import Any
 
 
 JSONSchema = dict[str, Any]
+ISO_DATE_PATTERN = r"^\d{4}-\d{2}-\d{2}$"
 
 TARGET_DATE_DESCRIPTION = (
-    "The target date in YYYY-MM-DD format. If the user specifies a relative date "
-    "like 'tomorrow', 'next Saturday', or 'on the 15th', you MUST calculate the "
-    "exact YYYY-MM-DD date based on the current system time and pass it here. "
-    "If no date is specified, omit this parameter."
+    "The target date in strict YYYY-MM-DD format. If the user specifies a relative "
+    "date like 'tomorrow', 'next Saturday', or 'on the 15th', you MUST calculate the "
+    "exact YYYY-MM-DD date based on the current logical date and pass it here."
 )
 
 CRITICAL_TASK_MATCHING_STRATEGY = (
@@ -34,9 +34,10 @@ def add_daily_task_tool_schema() -> JSONSchema:
             "target_date": {
                 "type": "string",
                 "description": TARGET_DATE_DESCRIPTION,
+                "pattern": ISO_DATE_PATTERN,
             }
         },
-        "required": ["task_text"],
+        "required": ["task_text", "target_date"],
         "additionalProperties": False,
     }
 
@@ -49,9 +50,10 @@ def get_daily_tasks_tool_schema() -> JSONSchema:
             "target_date": {
                 "type": "string",
                 "description": TARGET_DATE_DESCRIPTION,
+                "pattern": ISO_DATE_PATTERN,
             }
         },
-        "required": [],
+        "required": ["target_date"],
         "additionalProperties": False,
     }
 
@@ -72,9 +74,10 @@ def complete_daily_task_tool_schema() -> JSONSchema:
             "target_date": {
                 "type": "string",
                 "description": TARGET_DATE_DESCRIPTION,
+                "pattern": ISO_DATE_PATTERN,
             }
         },
-        "required": ["task_text"],
+        "required": ["task_text", "target_date"],
         "additionalProperties": False,
     }
 
@@ -95,8 +98,9 @@ def delete_daily_task_tool_schema() -> JSONSchema:
             "target_date": {
                 "type": "string",
                 "description": TARGET_DATE_DESCRIPTION,
+                "pattern": ISO_DATE_PATTERN,
             }
         },
-        "required": ["task_text"],
+        "required": ["task_text", "target_date"],
         "additionalProperties": False,
     }

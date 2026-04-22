@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from .events import add_calendar_event
 from .events import delete_calendar_event
 from .events import get_calendar_events
-from .io import MSK_TZ
+from .io import get_system_timezone
 from .schemas import CRITICAL_EVENT_MATCHING_STRATEGY
 from .schemas import RELATIVE_TIME_DESCRIPTION
 from .schemas import TARGET_DATE_DESCRIPTION
@@ -45,7 +45,7 @@ def register_calendar_tools(registry: ToolRegistry) -> None:
 
 
 __all__ = [
-    "MSK_TZ",
+    "get_system_timezone",
     "RELATIVE_TIME_DESCRIPTION",
     "TARGET_DATE_DESCRIPTION",
     "CRITICAL_EVENT_MATCHING_STRATEGY",

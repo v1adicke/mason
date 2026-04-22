@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .io import DEFAULT_FORWARD_SCAN_DAYS
 from .schemas import CRITICAL_TASK_MATCHING_STRATEGY
 from .schemas import TARGET_DATE_DESCRIPTION
 from .schemas import add_daily_task_tool_schema
@@ -53,7 +52,6 @@ def register_obsidian_daily_tools(registry: ToolRegistry) -> None:
 
 
 __all__ = [
-    "DEFAULT_FORWARD_SCAN_DAYS",
     "TARGET_DATE_DESCRIPTION",
     "CRITICAL_TASK_MATCHING_STRATEGY",
     "add_daily_task",

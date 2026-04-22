@@ -7,17 +7,12 @@ from datetime import datetime
 from datetime import time
 from datetime import timedelta
 from datetime import timezone
-import os
 from typing import Any
 from zoneinfo import ZoneInfo
 
 import caldav
 
-
-try:
-    MSK_TZ = ZoneInfo("Europe/Moscow")
-except Exception:
-    MSK_TZ = timezone(timedelta(hours=3))
+from ...config import get_settings
 
 
 SYSTEM_CALENDAR_MARKERS = (
@@ -36,6 +31,15 @@ SYSTEM_CALENDAR_MARKERS = (
 )
 
 
+def get_system_timezone() -> ZoneInfo:
+    """Return configured system timezone, fallback to UTC."""
+    settings = get_settings()
+    try:
+        return ZoneInfo(settings.mason_timezone)
+    except Exception:
+        return timezone.utc  # type: ignore[return-value]
+
+
 def _create_caldav_client(email: str, app_password: str, server_url: str) -> Any:
     """Create a single authorized CalDAV client"""
     client_factory = getattr(caldav, "DAVClient", None)
@@ -46,12 +50,14 @@ def _create_caldav_client(email: str, app_password: str, server_url: str) -> Any
 
 def get_caldav_clients() -> list[Any]:
     """Create CalDAV clients for primary and optional university accounts"""
-    server_url = os.getenv("CALDAV_SERVER_URL", "").strip()
+    settings = get_settings()
+
+    server_url = settings.caldav_server_url
     if not server_url:
         raise ValueError("CALDAV_SERVER_URL is not set")
 
-    primary_email = os.getenv("YANDEX_EMAIL", "").strip()
-    primary_app_password = os.getenv("YANDEX_APP_PASSWORD", "").strip()
+    primary_email = settings.yandex_email
+    primary_app_password = settings.yandex_app_password
     if not primary_email:
         raise ValueError("YANDEX_EMAIL is not set")
     if not primary_app_password:
@@ -65,8 +71,8 @@ def get_caldav_clients() -> list[Any]:
         )
     ]
 
-    uni_email = os.getenv("YANDEX_UNI_EMAIL", "").strip()
-    uni_app_password = os.getenv("YANDEX_UNI_APP_PASSWORD", "").strip()
+    uni_email = settings.yandex_uni_email
+    uni_app_password = settings.yandex_uni_app_password
     if uni_email and uni_app_password:
         clients.append(
             _create_caldav_client(
@@ -117,8 +123,8 @@ def get_primary_calendar(client: Any) -> Any:
     return calendars[0]
 
 
-def resolve_day_bounds_msk(target_date: str) -> tuple[datetime | None, datetime | None, str | None]:
-    """Resolve YYYY-MM-DD into [start, end) day bounds in MSK timezone"""
+def resolve_day_bounds(target_date: str) -> tuple[datetime | None, datetime | None, str | None]:
+    """Resolve YYYY-MM-DD into [start, end) day bounds in configured timezone"""
     clean_date = target_date.strip()
     if not clean_date:
         return None, None, "Неверный формат даты. Используйте YYYY-MM-DD"
@@ -128,13 +134,14 @@ def resolve_day_bounds_msk(target_date: str) -> tuple[datetime | None, datetime 
     except ValueError:
         return None, None, "Неверный формат даты. Используйте YYYY-MM-DD"
 
-    start = datetime.combine(parsed_date, time.min, tzinfo=MSK_TZ)
+    system_tz = get_system_timezone()
+    start = datetime.combine(parsed_date, time.min, tzinfo=system_tz)
     end = start + timedelta(days=1)
     return start, end, None
 
 
-def parse_iso_datetime_msk(value: str) -> tuple[datetime | None, str | None]:
-    """Parse ISO datetime and normalize to MSK timezone"""
+def parse_iso_datetime(value: str) -> tuple[datetime | None, str | None]:
+    """Parse ISO datetime and normalize to configured timezone"""
     clean_value = value.strip()
     if not clean_value:
         return None, "Неверный формат времени. Используйте ISO 8601"
@@ -144,17 +151,19 @@ def parse_iso_datetime_msk(value: str) -> tuple[datetime | None, str | None]:
     except ValueError:
         return None, "Неверный формат времени. Используйте ISO 8601"
 
+    system_tz = get_system_timezone()
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=MSK_TZ)
+        parsed = parsed.replace(tzinfo=system_tz)
     else:
-        parsed = parsed.astimezone(MSK_TZ)
+        parsed = parsed.astimezone(system_tz)
     return parsed, None
 
 
-def to_iso_msk(value: Any) -> str:
-    """Convert datetime or date value to ISO string in MSK timezone"""
+def to_iso(value: Any) -> str:
+    """Convert datetime or date value to ISO string in configured timezone"""
     if isinstance(value, datetime):
-        normalized = value.replace(tzinfo=MSK_TZ) if value.tzinfo is None else value.astimezone(MSK_TZ)
+        system_tz = get_system_timezone()
+        normalized = value.replace(tzinfo=system_tz) if value.tzinfo is None else value.astimezone(system_tz)
         return normalized.isoformat()
     if isinstance(value, date):
         return value.isoformat()
