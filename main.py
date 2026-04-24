@@ -10,7 +10,7 @@ from typing import Any
 
 from core.llm_client import LLMClient
 from core.logger import setup_logger
-from core.tools import ToolRegistry, register_calendar_tools, register_obsidian_daily_tools
+from core.tools import ToolRegistry, register_calendar_tools, register_obsidian_daily_tools, register_obsidian_vault_tools
 from core.ui import get_quick_filler
 
 
@@ -174,6 +174,7 @@ async def _main() -> None:
     logger = setup_logger()
     registry = ToolRegistry()
     register_obsidian_daily_tools(registry)
+    register_obsidian_vault_tools(registry)
     register_calendar_tools(registry)
     client = LLMClient()
     tools = registry.list_schemas()

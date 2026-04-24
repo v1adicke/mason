@@ -104,3 +104,42 @@ def delete_daily_task_tool_schema() -> JSONSchema:
         "required": ["task_text", "target_date"],
         "additionalProperties": False,
     }
+
+
+def search_vault_tool_schema() -> JSONSchema:
+    """Build JSON schema for search_vault tool"""
+    return {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": (
+                    "Поисковый запрос. Ищет совпадения (без учёта регистра) "
+                    "в именах файлов и содержимом всех .md заметок в Vault. "
+                    "Возвращает до 10 результатов с цитатой из контекста."
+                ),
+            },
+        },
+        "required": ["query"],
+        "additionalProperties": False,
+    }
+
+
+def read_note_tool_schema() -> JSONSchema:
+    """Build JSON schema for read_note tool"""
+    return {
+        "type": "object",
+        "properties": {
+            "filepath": {
+                "type": "string",
+                "description": (
+                    "Путь к .md файлу относительно корня Vault "
+                    "(например, 'Projects/idea.md'). "
+                    "Получи его из результатов search_vault. "
+                    "Разрешены только .md файлы внутри Vault."
+                ),
+            },
+        },
+        "required": ["filepath"],
+        "additionalProperties": False,
+    }

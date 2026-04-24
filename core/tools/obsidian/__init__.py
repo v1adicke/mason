@@ -10,13 +10,33 @@ from .schemas import add_daily_task_tool_schema
 from .schemas import complete_daily_task_tool_schema
 from .schemas import delete_daily_task_tool_schema
 from .schemas import get_daily_tasks_tool_schema
+from .schemas import read_note_tool_schema
+from .schemas import search_vault_tool_schema
 from .tasks import add_daily_task
 from .tasks import complete_daily_task
 from .tasks import delete_daily_task
 from .tasks import get_daily_tasks
+from .vault import read_note
+from .vault import search_vault
 
 if TYPE_CHECKING:
     from .. import ToolRegistry
+
+
+def register_obsidian_vault_tools(registry: ToolRegistry) -> None:
+    """Register global Obsidian Vault search and read tools"""
+    registry.register(
+        name="search_vault",
+        description="Ищет заметки в Obsidian Vault по запросу (имя файла + содержимое). Возвращает до 10 совпадений с фрагментами текста.",
+        parameters=search_vault_tool_schema(),
+        handler=search_vault,
+    )
+    registry.register(
+        name="read_note",
+        description="Читает полное содержимое .md заметки из Obsidian Vault по относительному пути. Используй путь из результатов search_vault.",
+        parameters=read_note_tool_schema(),
+        handler=read_note,
+    )
 
 
 def register_obsidian_daily_tools(registry: ToolRegistry) -> None:
@@ -58,9 +78,14 @@ __all__ = [
     "get_daily_tasks",
     "complete_daily_task",
     "delete_daily_task",
+    "search_vault",
+    "read_note",
     "add_daily_task_tool_schema",
     "get_daily_tasks_tool_schema",
     "complete_daily_task_tool_schema",
     "delete_daily_task_tool_schema",
+    "search_vault_tool_schema",
+    "read_note_tool_schema",
     "register_obsidian_daily_tools",
+    "register_obsidian_vault_tools",
 ]
