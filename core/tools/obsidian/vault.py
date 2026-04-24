@@ -13,7 +13,7 @@ _TRUNCATION_WARNING = "\n\n[...Заметка обрезана: превышен
 
 
 def search_vault(query: str = "") -> str:
-    """Search all .md files in the vault for query (filename + content, case-insensitive)."""
+    """Search all .md files in the vault for query (filename + content, case-insensitive)"""
     clean_query = query.strip()
     if not clean_query:
         return "Не указан поисковый запрос."
@@ -33,12 +33,10 @@ def search_vault(query: str = "") -> str:
             rel_path = md_file.relative_to(vault_root)
             rel_str = rel_path.as_posix()
 
-            # Match in filename
-            if lower_query in md_file.name.lower():
-                matches.append(f"📄 {rel_str}\n   (совпадение в имени файла)")
+            if lower_query in rel_str.lower():
+                matches.append(f"📄 {rel_str}\n   (совпадение в пути)")
                 continue
 
-            # Match in content
             try:
                 content = md_file.read_text(encoding="utf-8", errors="ignore")
             except OSError:
@@ -70,20 +68,18 @@ def search_vault(query: str = "") -> str:
 
 
 def read_note(filepath: str = "") -> str:
-    """Read and return the content of a .md file relative to the vault root."""
+    """Read and return the content of a .md file relative to the vault root"""
     clean_path = filepath.strip()
     if not clean_path:
         return "Не указан путь к заметке."
 
     vault_root = Path(get_settings().obsidian_vault_root).resolve()
 
-    # Resolve securely — prevent path traversal
     try:
         target = (vault_root / clean_path).resolve()
     except (ValueError, OSError) as error:
         return f"Некорректный путь: {error}"
 
-    # Security: must stay inside vault root
     try:
         target.relative_to(vault_root)
     except ValueError:
