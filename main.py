@@ -11,6 +11,7 @@ from typing import Any
 from core.llm_client import LLMClient
 from core.logger import setup_logger
 from core.tools import ToolRegistry, register_calendar_tools, register_obsidian_daily_tools
+from core.ui import get_quick_filler
 
 
 ChatMessage = dict[str, Any]
@@ -196,6 +197,7 @@ async def _main() -> None:
             if not user_input:
                 continue
 
+            print(f"Mason: {get_quick_filler(user_input)}")
             history.append({"role": "user", "content": user_input})
             try:
                 response_text = await _resolve_assistant_turn(
