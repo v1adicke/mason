@@ -6,7 +6,7 @@ from pathlib import Path
 
 from ...config import get_settings
 
-_MAX_RESULTS = 10
+_MAX_RESULTS = 25
 _SNIPPET_RADIUS = 100
 _MAX_NOTE_CHARS = 50_000
 _TRUNCATION_WARNING = "\n\n[...Заметка обрезана: превышен лимит в 50 000 символов...]"
@@ -65,6 +65,50 @@ def search_vault(query: str = "") -> str:
 
     header = f"Найдено {len(matches)} результат(ов) по запросу «{clean_query}»:\n"
     return header + "\n\n".join(matches)
+
+
+def replace_in_note(filepath: str = "", old_text: str = "", new_text: str = "") -> str:
+    """Replace the first occurrence of old_text with new_text in a vault .md file"""
+    clean_path = filepath.strip()
+    if not clean_path:
+        return "Не указан путь к заметке."
+    if not old_text:
+        return "Ошибка: old_text не может быть пустым."
+
+    vault_root = Path(get_settings().obsidian_vault_root).resolve()
+
+    try:
+        target = (vault_root / clean_path).resolve()
+    except (ValueError, OSError) as error:
+        return f"Некорректный путь: {error}"
+
+    try:
+        target.relative_to(vault_root)
+    except ValueError:
+        return "Доступ запрещён: путь выходит за пределы Vault."
+
+    if not target.suffix.lower() == ".md":
+        return "Разрешено редактировать только .md файлы."
+
+    if not target.is_file():
+        return f"Файл не найден: {clean_path}"
+
+    try:
+        content = target.read_text(encoding="utf-8")
+    except OSError as error:
+        return f"Ошибка чтения файла: {error}"
+
+    if old_text not in content:
+        return "Ошибка: old_text не найден в файле. Проверь точное совпадение."
+
+    updated = content.replace(old_text, new_text, 1)
+
+    try:
+        target.write_text(updated, encoding="utf-8")
+    except OSError as error:
+        return f"Ошибка записи файла: {error}"
+
+    return f"Готово: первое вхождение заменено в «{clean_path}»."
 
 
 def read_note(filepath: str = "") -> str:

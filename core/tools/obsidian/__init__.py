@@ -11,12 +11,14 @@ from .schemas import complete_daily_task_tool_schema
 from .schemas import delete_daily_task_tool_schema
 from .schemas import get_daily_tasks_tool_schema
 from .schemas import read_note_tool_schema
+from .schemas import replace_in_note_tool_schema
 from .schemas import search_vault_tool_schema
 from .tasks import add_daily_task
 from .tasks import complete_daily_task
 from .tasks import delete_daily_task
 from .tasks import get_daily_tasks
 from .vault import read_note
+from .vault import replace_in_note
 from .vault import search_vault
 
 if TYPE_CHECKING:
@@ -36,6 +38,16 @@ def register_obsidian_vault_tools(registry: ToolRegistry) -> None:
         description="Читает полное содержимое .md заметки из Obsidian Vault по относительному пути. Используй путь из результатов search_vault.",
         parameters=read_note_tool_schema(),
         handler=read_note,
+    )
+    registry.register(
+        name="replace_in_note",
+        description=(
+            "Заменяет ПЕРВОЕ вхождение точной подстроки (old_text) на новый текст (new_text) "
+            "в указанной .md заметке Vault. old_text должен дословно совпадать с содержимым файла. "
+            "Если не уверен в точном тексте — сначала вызови read_note."
+        ),
+        parameters=replace_in_note_tool_schema(),
+        handler=replace_in_note,
     )
 
 
@@ -80,12 +92,14 @@ __all__ = [
     "delete_daily_task",
     "search_vault",
     "read_note",
+    "replace_in_note",
     "add_daily_task_tool_schema",
     "get_daily_tasks_tool_schema",
     "complete_daily_task_tool_schema",
     "delete_daily_task_tool_schema",
     "search_vault_tool_schema",
     "read_note_tool_schema",
+    "replace_in_note_tool_schema",
     "register_obsidian_daily_tools",
     "register_obsidian_vault_tools",
 ]

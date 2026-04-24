@@ -143,3 +143,38 @@ def read_note_tool_schema() -> JSONSchema:
         "required": ["filepath"],
         "additionalProperties": False,
     }
+
+
+def replace_in_note_tool_schema() -> JSONSchema:
+    """Build JSON schema for replace_in_note tool"""
+    return {
+        "type": "object",
+        "properties": {
+            "filepath": {
+                "type": "string",
+                "description": (
+                    "Путь к .md файлу относительно корня Vault "
+                    "(например, 'Projects/idea.md'). "
+                    "Разрешены только .md файлы внутри Vault."
+                ),
+            },
+            "old_text": {
+                "type": "string",
+                "description": (
+                    "ТОЧНАЯ подстрока, которую нужно заменить. "
+                    "Должна дословно совпадать с текстом в файле — "
+                    "с учётом регистра, пробелов и переносов строк. "
+                    "Если не уверен в точном тексте — сначала вызови read_note."
+                ),
+            },
+            "new_text": {
+                "type": "string",
+                "description": (
+                    "Текст, которым нужно заменить первое вхождение old_text. "
+                    "Может быть пустой строкой для удаления фрагмента."
+                ),
+            },
+        },
+        "required": ["filepath", "old_text", "new_text"],
+        "additionalProperties": False,
+    }
