@@ -144,3 +144,46 @@ def read_note(filepath: str = "") -> str:
         return content[:_MAX_NOTE_CHARS] + _TRUNCATION_WARNING
 
     return content
+
+
+def rename_note(current_filepath: str, new_filename: str) -> str:
+    """Rename an existing vault note in place"""
+    clean_current_path = current_filepath.strip()
+    if not clean_current_path:
+        return "Ошибка: Исходный файл не найден"
+
+    clean_new_name = new_filename.strip()
+    if not clean_new_name:
+        return "Ошибка: Файл с таким именем уже существует"
+
+    if Path(clean_new_name).name != clean_new_name:
+        return "Ошибка: new_filename должен быть именем файла без пути"
+
+    if not clean_new_name.lower().endswith(".md"):
+        clean_new_name = f"{clean_new_name}.md"
+
+    vault_root = Path(get_settings().obsidian_vault_root).resolve()
+
+    try:
+        source_path = (vault_root / clean_current_path).resolve()
+    except (ValueError, OSError) as error:
+        return f"Некорректный путь: {error}"
+
+    try:
+        source_path.relative_to(vault_root)
+    except ValueError:
+        return "Доступ запрещён: путь выходит за пределы Vault."
+
+    if not source_path.is_file():
+        return "Ошибка: Исходный файл не найден"
+
+    target_path = source_path.parent / clean_new_name
+    if target_path.exists():
+        return "Ошибка: Файл с таким именем уже существует"
+
+    try:
+        source_path.rename(target_path)
+    except OSError as error:
+        return f"Ошибка файловой системы: {error}"
+
+    return f"Файл успешно переименован в {clean_new_name}"

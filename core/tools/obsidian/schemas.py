@@ -116,7 +116,7 @@ def search_vault_tool_schema() -> JSONSchema:
                 "description": (
                     "Поисковый запрос. Ищет совпадения (без учёта регистра) "
                     "в именах файлов и содержимом всех .md заметок в Vault. "
-                    "Возвращает до 10 результатов с цитатой из контекста."
+                    "Возвращает до 25 результатов с цитатой из контекста."
                 ),
             },
         },
@@ -176,5 +176,30 @@ def replace_in_note_tool_schema() -> JSONSchema:
             },
         },
         "required": ["filepath", "old_text", "new_text"],
+        "additionalProperties": False,
+    }
+
+
+def rename_note_tool_schema() -> JSONSchema:
+    """Build JSON schema for rename_note tool"""
+    return {
+        "type": "object",
+        "properties": {
+            "current_filepath": {
+                "type": "string",
+                "description": (
+                    "Относительный путь к существующему .md файлу внутри Vault "
+                    "(например, 'Projects/idea.md')"
+                ),
+            },
+            "new_filename": {
+                "type": "string",
+                "description": (
+                    "Желаемое новое имя файла без путей и папок "
+                    "(например, 'idea_v2' или 'idea_v2.md')"
+                ),
+            },
+        },
+        "required": ["current_filepath", "new_filename"],
         "additionalProperties": False,
     }

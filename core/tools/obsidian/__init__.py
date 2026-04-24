@@ -11,6 +11,7 @@ from .schemas import complete_daily_task_tool_schema
 from .schemas import delete_daily_task_tool_schema
 from .schemas import get_daily_tasks_tool_schema
 from .schemas import read_note_tool_schema
+from .schemas import rename_note_tool_schema
 from .schemas import replace_in_note_tool_schema
 from .schemas import search_vault_tool_schema
 from .tasks import add_daily_task
@@ -18,6 +19,7 @@ from .tasks import complete_daily_task
 from .tasks import delete_daily_task
 from .tasks import get_daily_tasks
 from .vault import read_note
+from .vault import rename_note
 from .vault import replace_in_note
 from .vault import search_vault
 
@@ -29,7 +31,7 @@ def register_obsidian_vault_tools(registry: ToolRegistry) -> None:
     """Register global Obsidian Vault search and read tools"""
     registry.register(
         name="search_vault",
-        description="Ищет заметки в Obsidian Vault по запросу (имя файла + содержимое). Возвращает до 10 совпадений с фрагментами текста.",
+        description="Ищет заметки в Obsidian Vault по запросу (имя файла + содержимое). Возвращает до 25 совпадений с фрагментами текста.",
         parameters=search_vault_tool_schema(),
         handler=search_vault,
     )
@@ -48,6 +50,15 @@ def register_obsidian_vault_tools(registry: ToolRegistry) -> None:
         ),
         parameters=replace_in_note_tool_schema(),
         handler=replace_in_note,
+    )
+    registry.register(
+        name="rename_note",
+        description=(
+            "Переименовывает существующий .md файл в Vault без перемещения между папками. "
+            "Новое имя должно быть без путей, а файл остаётся в исходной директории"
+        ),
+        parameters=rename_note_tool_schema(),
+        handler=rename_note,
     )
 
 
@@ -93,6 +104,7 @@ __all__ = [
     "search_vault",
     "read_note",
     "replace_in_note",
+    "rename_note",
     "add_daily_task_tool_schema",
     "get_daily_tasks_tool_schema",
     "complete_daily_task_tool_schema",
@@ -100,6 +112,7 @@ __all__ = [
     "search_vault_tool_schema",
     "read_note_tool_schema",
     "replace_in_note_tool_schema",
+    "rename_note_tool_schema",
     "register_obsidian_daily_tools",
     "register_obsidian_vault_tools",
 ]
