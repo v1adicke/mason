@@ -19,7 +19,6 @@ class Settings:
     openai_api_key: str
     openai_base_url: str
     openai_model: str
-    openai_heavy_model: str
     obsidian_vault_root: str
     obsidian_daily_path: str
     caldav_server_url: str
@@ -78,7 +77,6 @@ def get_settings() -> Settings:
         openai_api_key=_required_env("OPENAI_API_KEY"),
         openai_base_url=_required_env("OPENAI_BASE_URL"),
         openai_model=_required_env("OPENAI_MODEL"),
-        openai_heavy_model=_optional_env("OPENAI_HEAVY_MODEL"),
         obsidian_vault_root=_required_env("OBSIDIAN_VAULT_ROOT"),
         obsidian_daily_path=_required_env("OBSIDIAN_DAILY_PATH"),
         caldav_server_url=_optional_env("CALDAV_SERVER_URL"),

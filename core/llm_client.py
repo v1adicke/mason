@@ -19,36 +19,6 @@ from .llm.messages import sanitize_and_trim
 from .llm.prompt_context import build_system_prompt
 
 
-_HEAVY_KEYWORDS: frozenset[str] = frozenset({
-    "проанализируй",
-    "составь сводку",
-    "сделай ресерч",
-    "изучи",
-    "сравни",
-    "исследуй",
-    "подготовь отчёт",
-    "подготовь отчет",
-    "синтезируй",
-    "обобщи",
-})
-
-_HEAVY_TOOL_CONTENT_THRESHOLD = 15_000
-
-
-def _requires_heavy_model(user_message: str, current_history: list[dict[str, Any]]) -> bool:
-    """Return True when the request warrants the heavy model"""
-    lowered = user_message.lower()
-    if any(kw in lowered for kw in _HEAVY_KEYWORDS):
-        return True
-
-    total_tool_chars = sum(
-        len(msg.get("content") or "")
-        for msg in current_history
-        if msg.get("role") == "tool"
-    )
-    return total_tool_chars > _HEAVY_TOOL_CONTENT_THRESHOLD
-
-
 class LLMClient:
     """Client for text prompts via chat completions"""
 
@@ -121,15 +91,6 @@ class LLMClient:
 
         if model:
             selected_model = model
-        elif (
-            self._settings.openai_heavy_model
-            and _requires_heavy_model(
-                trimmed_history[-1].get("content") or "" if trimmed_history else "",
-                trimmed_history,
-            )
-        ):
-            selected_model = self._settings.openai_heavy_model
-            self._logger.info("Переключаюсь на тяжёлую модель: %s", selected_model)
         else:
             selected_model = self._settings.openai_model
 
