@@ -60,9 +60,21 @@ def _build_system_time_context(now: datetime, logical_now: datetime) -> str:
     )
 
 
+def _build_voice_chat_rule() -> str:
+    """Build rules for XML separated voice and chat responses"""
+    return (
+        "DUAL OUTPUT FORMAT RULE:\n"
+        "Вы обязаны разделять свой финальный (текстовый) ответ пользователю на две части с помощью XML тегов:\n"
+        "<voice>Короткая выжимка для голосовой озвучки. НИКАКОГО ФОРМАТИРОВАНИЯ (без *, #, Markdown, спецсимволов). Только чистый текст.</voice>\n"
+        "<chat>Полный подробный ответ для интерфейса. Здесь можно использовать любое Markdown форматирование.</chat>\n"
+        "Важно: используйте эти теги ТОЛЬКО для текстовых ответов. Не добавляйте их внутрь JSON аргументов при вызове инструментов."
+    )
+
+
 def build_system_prompt(system_prompt: str, timezone_name: str, cutoff_hour: int) -> str:
     """Compose full system prompt with dynamic server-time context"""
     now, logical_now = _resolve_current_time_context(timezone_name, cutoff_hour)
     time_context = _build_system_time_context(now, logical_now)
     date_inference_rule = _build_date_inference_rule(now, logical_now)
-    return f"{time_context}\n\n{date_inference_rule}\n\n{system_prompt}"
+    voice_chat_rule = _build_voice_chat_rule()
+    return f"{time_context}\n\n{date_inference_rule}\n\n{voice_chat_rule}\n\n{system_prompt}"

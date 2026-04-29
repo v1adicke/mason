@@ -214,7 +214,17 @@ async def _main() -> None:
                 history.append({"role": "assistant", "content": response_text})
 
             client.save_history(history)
-            print(f"Mason: {response_text}")
+            
+            voice_match = re.search(r"<voice>(.*?)</voice>", response_text, re.DOTALL)
+            chat_match = re.search(r"<chat>(.*?)</chat>", response_text, re.DOTALL)
+            
+            if voice_match or chat_match:
+                if voice_match:
+                    print(f"Mason [Voice]: {voice_match.group(1).strip()}")
+                if chat_match:
+                    print(f"Mason [Chat]: {chat_match.group(1).strip()}")
+            else:
+                print(f"Mason: {response_text}")
     finally:
         client.save_history(history)
         await client.aclose()
