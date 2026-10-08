@@ -10,6 +10,17 @@ async def test_owner_token_is_accepted(auth_setup):
     assert result.resource == "https://mason.example.com/mcp"
 
 
+async def test_library_issued_access_token_is_accepted(auth_setup):
+    verifier, _, _ = auth_setup
+    token = verifier.provider.jwt_issuer.issue_access_token(
+        client_id="mcp-test-client", scopes=["read:user"], jti="test-jti", expires_in=300
+    )
+    result = await verifier.verify_token(token)
+    assert result is not None
+    assert result.subject == "123"
+    assert result.resource == "https://mason.example.com/mcp"
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [

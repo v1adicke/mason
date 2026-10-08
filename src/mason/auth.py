@@ -44,7 +44,11 @@ class OwnerTokenVerifier:
         try:
             claims = self.provider.jwt_issuer.verify_token(token)
             expiry = claims.get("exp")
-            if type(expiry) is not int or expiry <= time() or claims.get("token_use") != "access":
+            if (
+                type(expiry) is not int
+                or expiry <= time()
+                or claims.get("token_use", "access") != "access"
+            ):
                 return None
             verified = await self.provider.verify_token(token)
             if verified is None or verified.subject != str(self.settings.github_owner_id):

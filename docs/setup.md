@@ -89,9 +89,11 @@ The check validates the local settings, HTTPS endpoint, OAuth discovery, PKCE ad
 and refusal of anonymous MCP requests. It prints no credentials or conversations. Passing it
 does not replace the actual sign-in and tool-call test.
 
-In ChatGPT, add the custom MCP URL and choose OAuth. Let ChatGPT register dynamically; leave
-its optional client credentials empty. The GitHub app credentials belong only in Mason's local
-environment file. Approve the proxy consent page, then sign in to GitHub as the configured owner.
+In ChatGPT, open Plugins, use Add → Add custom MCP server, and enter the name and MCP URL.
+Choose OAuth. Advanced OAuth settings should discover Dynamic Client Registration (DCR)
+and the `read:user` scope. The GitHub app credentials belong only in Mason's local environment
+file; they are not ChatGPT client credentials. Create the personal plugin, continue to Mason,
+approve the proxy consent page, then sign in to GitHub as the configured owner.
 
 Try:
 
