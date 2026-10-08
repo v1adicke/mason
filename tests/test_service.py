@@ -93,9 +93,6 @@ async def test_global_search_keeps_per_chat_positions():
     ]
     backends = {DEMO_CHAT_ID: first, 99: second}
     backend = AsyncMock()
-    backend.read_messages.side_effect = lambda chat_id, **kwargs: backends[chat_id].read_messages(
-        chat_id, **kwargs
-    )
 
     async def read(chat_id, **kwargs):
         return await backends[chat_id].read_messages(chat_id, **kwargs)
