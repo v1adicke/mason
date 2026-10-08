@@ -10,7 +10,9 @@ from pydantic import ValidationError
 from telethon.errors import SessionPasswordNeededError
 
 from mason.config import Settings, TelegramSettings
+from mason.doctor import doctor
 from mason.server import create_app
+from mason.setup import configure
 from mason.telegram.client import create_client, prepare_session
 
 
@@ -58,10 +60,17 @@ def main() -> None:
     os.umask(0o077)
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
     logging.getLogger("mcp").setLevel(logging.CRITICAL)
+    logging.getLogger("fastmcp").setLevel(logging.CRITICAL)
     logging.getLogger("telethon").setLevel(logging.CRITICAL)
     parser = argparse.ArgumentParser(prog="mason")
-    parser.add_argument("command", choices=["serve", "login", "chats"])
+    parser.add_argument("command", choices=["serve", "login", "chats", "configure", "doctor"])
+    parser.add_argument("target", nargs="?", choices=["github", "telegram"])
+    parser.add_argument("--network", action="store_true")
     args = parser.parse_args()
+    if args.target and args.command != "configure":
+        parser.error("a target is only used with configure")
+    if args.network and args.command != "doctor":
+        parser.error("--network is only used with doctor")
     try:
         if args.command == "serve":
             settings = Settings()
@@ -74,6 +83,11 @@ def main() -> None:
             )
         elif args.command == "login":
             asyncio.run(login())
+        elif args.command == "configure":
+            configure(args.target or "github")
+        elif args.command == "doctor":
+            if not doctor(network=args.network):
+                parser.exit(1)
         else:
             asyncio.run(list_local_chats())
     except ValidationError as error:
