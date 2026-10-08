@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from fastmcp.server.auth.oauth_proxy.models import JTIMapping, UpstreamTokenSet
+from key_value.aio.stores.memory import MemoryStore
 from mcp.server.auth.provider import AccessToken
 
 from mason.auth import create_auth
@@ -20,7 +21,7 @@ def auth_setup():
         github_client_secret="fictional-client-secret-for-tests",
         github_owner_id=123,
     )
-    verifier = create_auth(settings)
+    verifier = create_auth(settings, storage=MemoryStore())
     provider = verifier.provider
     now = int(time.time())
     provider._token_validator.verify_token = AsyncMock(

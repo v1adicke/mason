@@ -131,13 +131,16 @@ date, text, and context against Telegram. Stop the server before repeating local
 
 ## restarting and revoking access
 
-This trial keeps OAuth state and upstream tokens in memory. Restarting Mason invalidates
-existing MCP tokens and client registrations, so reconnect the ChatGPT app. Restarting the
-Quick Tunnel also changes the URL: update `.env`, the GitHub callback, and the ChatGPT URL.
+OAuth state and upstream tokens are encrypted in `~/.local/share/mason/oauth`, outside the
+checkout. The directory must have permissions `700`; new files use `600`. Restarting Mason
+keeps client registrations and token mappings. Changing the GitHub app secret makes the old
+state unreadable and requires a fresh client registration. Restarting the Quick Tunnel changes
+the URL: update `.env`, the GitHub callback, and the ChatGPT URL.
 
 To stop access immediately, stop Mason or revoke the Mason OAuth grant in GitHub's authorized
 applications. A leaked Telegram session must also be revoked in Telegram's device settings.
-For a service that stays on, add a stable hostname and encrypted persistent OAuth storage later.
+For a service that stays on, add a stable hostname later. Treat the local OAuth directory and
+environment file as credentials, and keep both out of Git and shared backups.
 
 ## if something fails
 

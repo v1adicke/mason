@@ -48,8 +48,8 @@ uv run mason serve
 ```
 
 `uv run mason doctor --network` checks setup and public discovery without printing secrets.
-The first trial uses a temporary URL and keeps OAuth state in memory, so server restarts need
-a fresh connection from ChatGPT.
+The first trial uses a temporary URL. OAuth state is encrypted outside the repo, so restarting
+Mason keeps the client registration. Restarting the tunnel still changes the public URL.
 
 ## a few things to know
 

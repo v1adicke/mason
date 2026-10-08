@@ -1,7 +1,13 @@
+import os
+from pathlib import Path
 from time import time
 
+from cryptography.fernet import Fernet
+from fastmcp.server.auth.jwt_issuer import derive_jwt_key
 from fastmcp.server.auth.providers.github import GitHubProvider
-from key_value.aio.stores.memory import MemoryStore
+from key_value.aio.protocols import AsyncKeyValue
+from key_value.aio.stores.filetree import FileTreeStore
+from key_value.aio.wrappers.encryption import FernetEncryptionWrapper
 from mcp.server.auth.provider import AccessToken
 
 from mason.config import Settings
@@ -9,8 +15,28 @@ from mason.config import Settings
 READ_SCOPE = "read:user"
 
 
-def create_auth(settings: Settings):
-    """let the library handle OAuth while keeping trial state in memory"""
+def create_storage(settings: Settings, directory: Path | None = None):
+    """keep OAuth state encrypted in a private local directory"""
+    directory = directory or Path.home() / ".local/share/mason/oauth"
+    if directory.is_symlink():
+        raise ValueError("the OAuth directory must not be a symbolic link")
+    os.umask(0o077)
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if directory.stat().st_uid != os.getuid() or directory.stat().st_mode & 0o077:
+        raise ValueError("the OAuth directory must be owned by you with permissions 700")
+    key = derive_jwt_key(
+        high_entropy_material=settings.github_client_secret.get_secret_value(),
+        salt="mason-oauth-storage",
+    )
+    return FernetEncryptionWrapper(
+        key_value=FileTreeStore(data_directory=directory),
+        fernet=Fernet(key),
+        raise_on_decryption_error=False,
+    )
+
+
+def create_auth(settings: Settings, *, storage: AsyncKeyValue | None = None):
+    """let the library handle OAuth with encrypted local state"""
     provider = GitHubProvider(
         client_id=settings.github_client_id,
         client_secret=settings.github_client_secret.get_secret_value(),
@@ -22,7 +48,7 @@ def create_auth(settings: Settings):
             "http://localhost:*",
             "http://127.0.0.1:*",
         ],
-        client_storage=MemoryStore(),
+        client_storage=storage if storage is not None else create_storage(settings),
         require_authorization_consent=True,
         fastmcp_access_token_expiry_seconds=900,
         enable_cimd=False,

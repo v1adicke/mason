@@ -17,8 +17,10 @@ OAuth discovery is public; Telegram tools are not.
 
 Only GitHub's `read:user` scope is requested. It identifies the caller; the Telegram allowlist
 is a separate server-side policy. The proxy keeps consent and PKCE enabled, allows only known
-ChatGPT callbacks and loopback clients, and stores trial OAuth state in memory. After a restart,
-reconnect the MCP app. GitHub tokens and the app secret never go to ChatGPT.
+ChatGPT callbacks and loopback clients, and encrypts OAuth state in `~/.local/share/mason/oauth`.
+The encryption key is derived from the GitHub app secret using the library's key derivation.
+The directory is private, and files are created with permissions `600`. Restarting Mason keeps
+client registrations and token mappings. GitHub tokens and the app secret never go to ChatGPT.
 
 There is one owner and one Telegram session. A valid token from another user still gets
 rejected. There is no public signup in Mason and no login-code tool.
