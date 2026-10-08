@@ -1,7 +1,8 @@
 # getting it connected
 
-The automated tests cover signed-token HTTP calls and a demo search. A real ChatGPT OAuth
-connection and a real Telegram search still need to be checked with my own accounts.
+For the first real test, I use a temporary Cloudflare URL and sign in through GitHub.
+No domain purchase or separate identity-provider account is needed. The endpoint still
+requires OAuth, including in demo mode.
 
 ## 1. local environment
 
@@ -15,113 +16,136 @@ cp .env.example .env
 chmod 600 .env
 ```
 
-Edit `.env` locally. Keep `MASON_MODE=demo` for the first connection test. Demo mode still
-requires OAuth; it just removes the need for Telegram credentials.
+Keep `MASON_MODE=demo` while checking the connection. All demo messages are fictional.
 
-## 2. OAuth provider
+## 2. a temporary HTTPS address
 
-Use a provider that supports authorization code + PKCE, MCP discovery, and resource-bound
-RS256 access tokens. Auth0 is one option. This is a setup example, not a completed deployment.
+Install [cloudflared](https://github.com/cloudflare/cloudflared/releases), then keep this
+running in a separate terminal:
 
-For Auth0, configure a dedicated API with:
-
-- Identifier: the exact `MASON_PUBLIC_URL`, including `/mcp`
-- Signing algorithm: RS256
-- Permission: `telegram:read`, assigned to my user
-- Resource Parameter Compatibility Profile enabled so MCP's `resource` selects the API audience
-
-Register ChatGPT as an OAuth application using predefined client credentials. Copy the exact
-callback URL shown in ChatGPT into the provider's allowed callbacks, enable authorization code
-with PKCE, and allow that application to request the API permission. With predefined client
-credentials, there is no need for open dynamic client registration.
-
-Set these local values:
-
-```dotenv
-MASON_PUBLIC_URL=https://your-domain.example/mcp
-MASON_OAUTH_ISSUER=https://your-tenant.auth0.com/
-MASON_OAUTH_JWKS_URL=https://your-tenant.auth0.com/.well-known/jwks.json
-MASON_OAUTH_OWNER=your-exact-auth0-user-id
+```bash
+cloudflared tunnel --url http://127.0.0.1:8000 --protocol http2 --no-autoupdate
 ```
 
-Copy the issuer exactly as published in the provider's discovery document. The owner is its
-user ID / token `sub`, not an email address. The provider must issue `telegram:read` in `scope`
-and the exact public URL in `aud`. ID tokens and machine-to-machine tokens are not a substitute
-for the owner's access token. Use a short access-token lifetime; revocation may otherwise take
-effect only when an already-issued JWT expires. Refresh tokens stay with the OAuth client.
+Copy the generated `https://something.trycloudflare.com` address into `.env`, with `/mcp`:
 
-See [OpenAI's authentication guide](https://developers.openai.com/plugins/build/auth) and
-[Auth0's MCP configuration example](https://auth0.com/blog/secure-csharp-mcp-server-with-auth0/).
+```dotenv
+MASON_PUBLIC_URL=https://something.trycloudflare.com/mcp
+```
 
-## 3. HTTPS and a demo call
+The server can start after the OAuth credentials are ready. Until then the tunnel has nothing
+to forward to. Keep this same tunnel running throughout setup.
 
-Start Mason:
+Quick Tunnels change hostname on restart and have no uptime guarantee. They also do not
+support SSE; Mason uses Streamable HTTP with JSON responses for this trial. A stable hostname
+can come later. See [Cloudflare's limitations](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/).
+
+## 3. a GitHub OAuth app
+
+Open [GitHub OAuth Apps](https://github.com/settings/developers) and create an app:
+
+| Field | Value |
+| --- | --- |
+| Application name | Mason |
+| Homepage URL | The Mason repository URL |
+| Callback / redirect URI | The tunnel origin followed by `/auth/callback` |
+
+Use the exact callback, without wildcard matching. Keep access-token expiration enabled and
+device flow disabled. Generate a client secret on GitHub, then enter credentials locally:
+
+```bash
+uv run mason configure github
+```
+
+The prompts hide the client ID and secret. The owner ID is the numeric GitHub user ID, not
+the username. It is available from the public profile API at
+`https://api.github.com/users/YOUR_USERNAME`. If the local file already has the right ID,
+leave that prompt empty to keep it.
+
+Mason requests `read:user` for identity verification. It does not request repository write,
+email-address, or profile-write scopes. A valid login from another GitHub account still cannot
+read the owner's Telegram. See [GitHub's scope definitions](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps).
+
+The [FastMCP GitHub OAuth bridge](https://gofastmcp.com/integrations/github) handles the OAuth
+flow. Client registration is limited to known ChatGPT callbacks and local loopback clients.
+The proxy consent screen stays enabled, and PKCE is required. Mason validates its own proxy
+token and then verifies the owner through GitHub; a GitHub token alone is not an MCP token.
+
+## 4. check the demo from ChatGPT
+
+Start Mason and check the public connection:
 
 ```bash
 uv run mason serve
 ```
 
-Point a named Cloudflare Tunnel at `http://127.0.0.1:8000` using the same public hostname as
-`MASON_PUBLIC_URL`. Keep the hostname stable: changing it also changes the OAuth resource and
-requires updating the provider configuration. The laptop and tunnel must stay running.
-
-The tunnel provides HTTPS, not user authentication. A separate browser-only Cloudflare Access
-login in front of `/mcp` would need its own compatibility check; it is not the OAuth setup here.
-
-Check the public endpoint without credentials:
+In another terminal:
 
 ```bash
-curl -i -X POST https://your-domain.example/mcp \
-  -H 'Content-Type: application/json' -d '{}'
+uv run mason doctor --network
 ```
 
-Expect `401` and a `WWW-Authenticate` header pointing to resource metadata. Discovery lives at
-`/.well-known/oauth-protected-resource/mcp`. `/health` returns a small public status response.
+The check validates the local settings, HTTPS endpoint, OAuth discovery, PKCE advertisement,
+and refusal of anonymous MCP requests. It prints no credentials or conversations. Passing it
+does not replace the actual sign-in and tool-call test.
 
-In ChatGPT, add the custom MCP URL, select OAuth, and enter the registered OAuth client
-credentials in its settings. Sign in as the configured owner. Try:
+In ChatGPT, add the custom MCP URL and choose OAuth. Let ChatGPT register dynamically; leave
+its optional client credentials empty. The GitHub app credentials belong only in Mason's local
+environment file. Approve the proxy consent page, then sign in to GitHub as the configured owner.
+
+Try:
 
 > Search the Mason demo chat for "maths", then read the context around a result.
 
-The result must say it is fictional demo data. Verify search and context both work before
-enabling Telegram. ChatGPT UI availability and provider compatibility need this real test.
+Check that results are labeled as fictional demo data. Confirm both search and context work
+before enabling Telegram. Follow [OpenAI's connection guide](https://developers.openai.com/api/docs/guides/custom-mcp-server)
+if the current ChatGPT UI differs.
 
-## 4. Telegram, locally
+## 5. Telegram, locally
 
-Get API credentials from [my.telegram.org](https://my.telegram.org). Put them into the local
-`.env`; never paste credentials, login codes, passwords, or sessions into a model chat.
+Get API credentials from [my.telegram.org](https://my.telegram.org). Enter them through hidden
+local prompts, then log in:
 
 ```bash
+uv run mason configure telegram
 uv run mason login
 uv run mason chats
 ```
 
-Login prompts run in the local terminal and hide entered values. The default session location
-is `~/.local/share/mason/telegram.session`. Its directory must have permissions `700`, and
-session files must have permissions `600`. An existing insecure directory or file is rejected.
+Do not paste API credentials, login codes, passwords, or sessions into a model chat. The default
+session lives at `~/.local/share/mason/telegram.session`. The directory must have permissions
+`700`, and session files must have permissions `600`. Mason checks ownership and permissions.
 
-The `chats` command lists account dialog IDs and titles locally. Choose a few and configure:
+The local `chats` command prints dialog IDs and titles. Choose a few and update `.env`:
 
 ```dotenv
 MASON_MODE=telegram
 MASON_ALLOWED_CHATS=[-1001234567890,123456789]
 ```
 
-These IDs are placeholders; replace them with the actual IDs from the local command. Restart
-Mason, refresh the ChatGPT tools if needed, then search for a message I can verify manually.
-Read its context and compare the author, date, text, and source against Telegram.
+Replace those placeholder IDs with real IDs from the local command. Restart Mason, reconnect
+the ChatGPT app if needed, and search for a message I can verify manually. Compare the author,
+date, text, and context against Telegram. Stop the server before repeating local session setup.
 
-Secret chats are outside this MVP. No attachments are downloaded. Document names and captions
-may appear as metadata; searching PDF contents and searching photos are future work.
+## restarting and revoking access
+
+This trial keeps OAuth state and upstream tokens in memory. Restarting Mason invalidates
+existing MCP tokens and client registrations, so reconnect the ChatGPT app. Restarting the
+Quick Tunnel also changes the URL: update `.env`, the GitHub callback, and the ChatGPT URL.
+
+To stop access immediately, stop Mason or revoke the Mason OAuth grant in GitHub's authorized
+applications. A leaked Telegram session must also be revoked in Telegram's device settings.
+For a service that stays on, add a stable hostname and encrypted persistent OAuth storage later.
 
 ## if something fails
 
-- `401`: check signature keys, issuer, owner ID, audience, expiry, and scope
-- `429`: wait a minute; the HTTP limit includes invalid requests
+- `401`: check owner ID, token expiry, and GitHub authorization; reconnect after a restart
+- `429`: wait a minute; the HTTP limit includes invalid requests and OAuth calls
 - `rate_limited`: wait for the Telegram retry interval shown in the tool error
-- `chat_not_allowed`: use an ID returned by the MCP `list_chats` tool
-- `telegram_unavailable`: check the session, network, and current Telegram chat access locally
+- `chat_not_allowed`: choose a chat from the MCP `list_chats` tool
+- `telegram_unavailable`: check the session, network, and chat access locally
 - `invalid_cursor`: restart the search after changing its filters or allowed chats
 
-Do not turn authentication off to troubleshoot a public endpoint. Keep testing with demo data
-until the connection works.
+Do not disable authentication to troubleshoot a public endpoint. Keep using demo data until
+the connection works. Secret chats, attachment downloads, PDF content search, and photo search
+are outside this first version.

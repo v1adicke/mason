@@ -9,6 +9,8 @@ The first version is read-only: keyword search, recent messages, and a bit of co
 result. Semantic search and photos can wait until the basics work.
 
 Built with Python 3.12+, Telethon, and the official MCP SDK. One app, no extra search database yet.
+FastMCP's OAuth bridge handles GitHub sign-in, so the first trial does not need a separate
+identity-provider account.
 
 ## what it does
 
@@ -32,15 +34,22 @@ uv run pytest
 
 The tests use fictional messages and generated test keys. They do not connect to Telegram.
 
-For a real connection, follow [the setup guide](docs/setup.md): configure OAuth and an HTTPS
-tunnel, test the demo from ChatGPT, then log into Telegram locally and choose allowed chats.
+For a real connection, follow [the setup guide](docs/setup.md): start a temporary HTTPS tunnel,
+configure a GitHub OAuth app, test the demo from ChatGPT, then log into Telegram locally and
+choose allowed chats.
 There is no OpenAI API key involved in this setup.
 
 ```bash
+uv run mason configure github
+uv run mason configure telegram
 uv run mason login
 uv run mason chats
 uv run mason serve
 ```
+
+`uv run mason doctor --network` checks setup and public discovery without printing secrets.
+The first trial uses a temporary URL and keeps OAuth state in memory, so server restarts need
+a fresh connection from ChatGPT.
 
 ## a few things to know
 

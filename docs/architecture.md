@@ -9,10 +9,16 @@ so I can test the connection before touching my account.
 ChatGPT -> HTTPS tunnel -> authenticated MCP -> Telegram service -> Telethon -> Telegram
 ```
 
-The server binds to `127.0.0.1:8000`. A tunnel exposes `/mcp` over HTTPS. OAuth lives with an
-external provider; Mason verifies RS256 access tokens against its configured JWKS endpoint.
-Signature, issuer, audience, expiry, owner ID, and `telegram:read` scope all have to match.
-The audience is the exact public `/mcp` URL. OAuth discovery is public; Telegram tools are not.
+The server binds to `127.0.0.1:8000`. A tunnel exposes `/mcp` over HTTPS. FastMCP's GitHub OAuth
+proxy handles sign-in and client registration alongside the official SDK's MCP routes. It
+issues signed reference tokens bound to the public `/mcp` URL, then validates upstream identity
+through GitHub. Mason checks the signature, issuer, audience, expiry, and numeric owner ID.
+OAuth discovery is public; Telegram tools are not.
+
+Only GitHub's `read:user` scope is requested. It identifies the caller; the Telegram allowlist
+is a separate server-side policy. The proxy keeps consent and PKCE enabled, allows only known
+ChatGPT callbacks and loopback clients, and stores trial OAuth state in memory. After a restart,
+reconnect the MCP app. GitHub tokens and the app secret never go to ChatGPT.
 
 There is one owner and one Telegram session. A valid token from another user still gets
 rejected. There is no public signup in Mason and no login-code tool.
@@ -26,7 +32,7 @@ rejected. There is no public signup in Mason and no login-code tool.
 - Text is capped at 2,000 characters per message and 20,000 characters per response
 - Pagination stores per-chat positions and binds them to the search; every page checks access again
 - One Telegram operation at a time, a 30-second deadline, and no automatic FloodWait sleeping
-- HTTP bodies are capped at 16 KiB; the single-user endpoint allows 60 requests per minute
+- MCP and OAuth POST bodies are capped at 16 KiB; those endpoints share 60 requests per minute
 - Sessions live outside the checkout in a private directory, with permissions checked at startup
 - HTTP access logs are off; unexpected tool errors log only the exception type
 
