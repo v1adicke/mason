@@ -14,12 +14,12 @@ def prepare_session(path: Path, *, create: bool = False) -> None:
     """check the session location and its file permissions"""
     if create:
         path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    if path.parent.stat().st_mode & 0o077:
+    if path.parent.stat().st_uid != os.getuid() or path.parent.stat().st_mode & 0o077:
         raise ValueError("the session directory must have permissions 700")
     if not create and not path.is_file():
         raise ValueError("run mason login first")
     for file in path.parent.glob(path.name + "*"):
-        if file.is_symlink() or file.stat().st_mode & 0o077:
+        if file.is_symlink() or file.stat().st_uid != os.getuid() or file.stat().st_mode & 0o077:
             raise ValueError("session files must have permissions 600")
 
 
@@ -44,7 +44,6 @@ class TelethonBackend:
     def __init__(self, settings: TelegramSettings):
         prepare_session(settings.session_path)
         self.client = create_client(settings)
-        self.chats: dict[int, Chat] = {}
 
     async def connect(self) -> None:
         await self.client.connect()
@@ -56,25 +55,23 @@ class TelethonBackend:
         await self.client.disconnect()
 
     async def get_chat(self, chat_id: int) -> Chat:
-        if chat_id not in self.chats:
-            entity = await self.client.get_entity(chat_id)
-            if isinstance(entity, types.Channel):
-                kind = "supergroup" if entity.megagroup else "channel"
-            elif isinstance(entity, types.Chat):
-                kind = "group"
-            elif isinstance(entity, types.User):
-                kind = "private"
-            else:
-                raise ValueError("chat is unavailable")
-            self.chats[chat_id] = Chat(
-                id=utils.get_peer_id(entity),
-                title=utils.get_display_name(entity)[:200],
-                kind=kind,
-                username=getattr(entity, "username", None),
-            )
-        return self.chats[chat_id]
+        entity = await self.client.get_entity(chat_id)
+        if isinstance(entity, types.Channel):
+            kind = "supergroup" if entity.megagroup else "channel"
+        elif isinstance(entity, types.Chat):
+            kind = "group"
+        elif isinstance(entity, types.User):
+            kind = "private"
+        else:
+            raise ValueError("chat is unavailable")
+        return Chat(
+            id=utils.get_peer_id(entity),
+            title=utils.get_display_name(entity)[:200],
+            kind=kind,
+            username=getattr(entity, "username", None),
+        )
 
-    def _message(self, chat: Chat, message: types.Message) -> Message:
+    def _message(self, chat: Chat, message: types.Message | types.MessageService) -> Message:
         media_type = None
         if message.photo:
             media_type = "photo"
@@ -83,6 +80,7 @@ class TelethonBackend:
         return Message(
             chat=chat,
             message_id=message.id,
+            kind="service" if isinstance(message, types.MessageService) else "message",
             sender=utils.get_display_name(message.sender)[:200] if message.sender else None,
             sender_id=message.sender_id,
             date=message.date,
@@ -108,7 +106,7 @@ class TelethonBackend:
         async for message in self.client.iter_messages(
             chat_id, limit=limit, search=query, offset_id=before_id, offset_date=date_to
         ):
-            if isinstance(message, types.Message):
+            if isinstance(message, (types.Message, types.MessageService)):
                 messages.append(self._message(chat, message))
         return messages
 
@@ -117,19 +115,19 @@ class TelethonBackend:
     ) -> list[Message]:
         chat = await self.get_chat(chat_id)
         anchor = await self.client.get_messages(chat_id, ids=message_id)
-        if not isinstance(anchor, types.Message):
+        if not isinstance(anchor, (types.Message, types.MessageService)):
             return []
         messages = [anchor]
         if before:
             async for message in self.client.iter_messages(
                 chat_id, limit=before, max_id=message_id
             ):
-                if isinstance(message, types.Message):
+                if isinstance(message, (types.Message, types.MessageService)):
                     messages.append(message)
         if after:
             async for message in self.client.iter_messages(
                 chat_id, limit=after, min_id=message_id, reverse=True
             ):
-                if isinstance(message, types.Message):
+                if isinstance(message, (types.Message, types.MessageService)):
                     messages.append(message)
         return [self._message(chat, message) for message in sorted(messages, key=lambda m: m.id)]

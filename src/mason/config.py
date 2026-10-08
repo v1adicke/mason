@@ -62,7 +62,10 @@ class TelegramSettings(BaseSettings):
     @classmethod
     def validate_session_path(cls, value: Path) -> Path:
         """keep the session outside the checkout"""
-        path = value.expanduser().resolve()
+        expanded = value.expanduser()
+        if expanded.is_symlink():
+            raise ValueError("the session must not be a symbolic link")
+        path = expanded.resolve()
         root = Path(__file__).resolve().parents[2]
         if path.is_relative_to(root) or path.is_relative_to(Path.cwd().resolve()):
             raise ValueError("the session must live outside the project directory")

@@ -57,6 +57,8 @@ Context reads actual messages before and after an anchor, rather than assuming I
 It is chronological neighboring context, not an entire reply thread. Private conversations and
 basic groups have no invented message link. Channels and supergroups use supported Telegram
 links; private links still require membership. Demo data has no real source links.
+Telegram service events can have empty text and `kind=service`; they still count as real
+neighbors and do not prematurely end a page.
 
 SQLite/FTS5, embeddings, photo search, voice, and other modules can come later. They do not
 need scaffolding in this version.

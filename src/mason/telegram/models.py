@@ -14,6 +14,7 @@ class Chat(BaseModel):
 class Message(BaseModel):
     chat: Chat
     message_id: int
+    kind: Literal["message", "service"] = "message"
     sender: str | None
     sender_id: int | None
     date: datetime
