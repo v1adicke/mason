@@ -108,3 +108,22 @@ async def test_mcp_errors_do_not_expose_backend_details(auth_setup, caplog):
         result = await client.call_tool("get_recent_messages", {"chat_id": DEMO_CHAT_ID})
         assert not result.is_error
     assert "fictional" not in caplog.text
+
+
+async def test_unexpected_backend_errors_are_sanitized(auth_setup, caplog):
+    from unittest.mock import AsyncMock
+
+    from mason.telegram.demo import DemoBackend
+    from mason.telegram.service import TelegramService
+
+    verifier, _, _ = auth_setup
+    backend = DemoBackend()
+    backend.read_messages = AsyncMock(side_effect=RuntimeError("private message and token"))
+    service = TelegramService(backend, [DEMO_CHAT_ID], "UTC")
+    server = create_server(verifier.settings, service=service, verifier=verifier)
+    async with Client(server) as client:
+        result = await client.call_tool("search_messages", {"query": "maths"})
+        assert result.is_error
+        assert "internal_error" in result.content[0].text
+        assert "private message and token" not in str(result)
+    assert "private message and token" not in caplog.text
