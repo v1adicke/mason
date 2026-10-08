@@ -14,7 +14,14 @@ class RequestLimitMiddleware:
         self.requests: deque[float] = deque()
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] == "http" and scope["path"] == "/mcp":
+        if scope["type"] == "http" and scope["path"] in {
+            "/mcp",
+            "/authorize",
+            "/token",
+            "/register",
+            "/consent",
+            "/auth/callback",
+        }:
             now = monotonic()
             while self.requests and now - self.requests[0] >= 60:
                 self.requests.popleft()

@@ -1,45 +1,55 @@
 import jwt
 import pytest
-from cryptography.hazmat.primitives.asymmetric import rsa
 
 
 async def test_owner_token_is_accepted(auth_setup):
     verifier, key, claims = auth_setup
-    token = jwt.encode(claims, key, algorithm="RS256", headers={"kid": "test"})
+    token = jwt.encode(claims, key, algorithm="HS256")
     result = await verifier.verify_token(token)
-    assert result.subject == "owner"
+    assert result.subject == "123"
     assert result.resource == "https://mason.example.com/mcp"
 
 
 @pytest.mark.parametrize(
     ("field", "value"),
     [
-        ("sub", "someone-else"),
-        ("aud", "https://another-service.example.com"),
+        ("aud", "https://another-service.example.com/mcp"),
         ("iss", "https://another-issuer.example.com/"),
-        ("scope", "telegram:write"),
+        ("scope", "repo"),
         ("exp", 1),
+        ("exp", None),
+        ("token_use", "refresh"),
+        ("jti", "unknown-token"),
     ],
 )
-async def test_invalid_claims_are_rejected(auth_setup, field, value):
+async def test_invalid_proxy_tokens_are_rejected(auth_setup, field, value):
     verifier, key, claims = auth_setup
     claims[field] = value
-    token = jwt.encode(claims, key, algorithm="RS256", headers={"kid": "test"})
+    token = jwt.encode(claims, key, algorithm="HS256")
+    assert await verifier.verify_token(token) is None
+
+
+async def test_another_github_owner_is_rejected(auth_setup):
+    verifier, key, claims = auth_setup
+    verifier.provider._token_validator.verify_token.return_value.subject = "456"
+    token = jwt.encode(claims, key, algorithm="HS256")
+    assert await verifier.verify_token(token) is None
+
+
+async def test_revoked_github_token_is_rejected(auth_setup):
+    verifier, key, claims = auth_setup
+    verifier.provider._token_validator.verify_token.return_value = None
+    token = jwt.encode(claims, key, algorithm="HS256")
     assert await verifier.verify_token(token) is None
 
 
 async def test_wrong_signature_is_rejected(auth_setup):
     verifier, _, claims = auth_setup
-    other_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    token = jwt.encode(claims, other_key, algorithm="RS256", headers={"kid": "test"})
+    token = jwt.encode(claims, "another-signing-key-with-enough-entropy", algorithm="HS256")
     assert await verifier.verify_token(token) is None
 
 
-async def test_malformed_token_does_not_fetch_keys(auth_setup):
+async def test_malformed_token_never_reaches_github(auth_setup):
     verifier, _, _ = auth_setup
-
-    def fail(token):
-        raise AssertionError("unexpected key lookup")
-
-    verifier.keys.get_signing_key_from_jwt = fail
     assert await verifier.verify_token("not-a-token") is None
+    verifier.provider._token_validator.verify_token.assert_not_awaited()

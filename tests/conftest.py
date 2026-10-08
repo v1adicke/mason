@@ -1,32 +1,64 @@
+import asyncio
 import time
-from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
-from cryptography.hazmat.primitives.asymmetric import rsa
+from fastmcp.server.auth.oauth_proxy.models import JTIMapping, UpstreamTokenSet
+from mcp.server.auth.provider import AccessToken
 
-from mason.auth import OwnerTokenVerifier
+from mason.auth import create_auth
 from mason.config import Settings
 
 
 @pytest.fixture
 def auth_setup():
-    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     settings = Settings(
         _env_file=None,
         mode="demo",
         public_url="https://mason.example.com/mcp",
-        oauth_issuer="https://auth.example.com/",
-        oauth_jwks_url="https://auth.example.com/jwks",
-        oauth_owner="owner",
+        github_client_id="fictional-client-id",
+        github_client_secret="fictional-client-secret-for-tests",
+        github_owner_id=123,
     )
-    verifier = OwnerTokenVerifier(settings)
-    verifier.keys.get_signing_key_from_jwt = lambda token: SimpleNamespace(key=key.public_key())
+    verifier = create_auth(settings)
+    provider = verifier.provider
+    now = int(time.time())
+    provider._token_validator.verify_token = AsyncMock(
+        return_value=AccessToken(
+            token="fictional-github-token", client_id="123", subject="123", scopes=["read:user"]
+        )
+    )
+
+    async def seed():
+        await provider._upstream_token_store.put(
+            key="test-upstream",
+            value=UpstreamTokenSet(
+                upstream_token_id="test-upstream",
+                access_token="fictional-github-token",
+                refresh_token=None,
+                refresh_token_expires_at=None,
+                expires_at=now + 3600,
+                token_type="Bearer",
+                scope="read:user",
+                client_id="mcp-test-client",
+                created_at=now,
+            ),
+        )
+        await provider._jti_mapping_store.put(
+            key="test-jti",
+            value=JTIMapping(jti="test-jti", upstream_token_id="test-upstream", created_at=now),
+        )
+
+    asyncio.run(seed())
     claims = {
-        "sub": "owner",
-        "iss": settings.oauth_issuer,
+        "iss": str(provider.issuer_url),
         "aud": settings.public_url,
-        "scope": "telegram:read",
-        "iat": int(time.time()),
-        "exp": int(time.time()) + 300,
+        "sub": "mcp-test-client",
+        "client_id": "mcp-test-client",
+        "scope": "read:user",
+        "jti": "test-jti",
+        "token_use": "access",
+        "iat": now,
+        "exp": now + 300,
     }
-    return verifier, key, claims
+    return verifier, provider._jwt_signing_key, claims

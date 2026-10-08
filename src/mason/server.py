@@ -11,10 +11,11 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
 from pydantic import AnyHttpUrl, AwareDatetime, Field
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from mason.auth import READ_SCOPE, OwnerTokenVerifier
+from mason.auth import READ_SCOPE, create_auth
 from mason.config import Settings, TelegramSettings
 from mason.http import RequestLimitMiddleware
 from mason.telegram.client import TelethonBackend
@@ -83,9 +84,9 @@ def create_server(
             )
         ),
         lifespan=lifespan,
-        token_verifier=verifier or OwnerTokenVerifier(settings),
+        token_verifier=verifier or create_auth(settings),
         auth=AuthSettings(
-            issuer_url=AnyHttpUrl(settings.oauth_issuer),
+            issuer_url=AnyHttpUrl(settings.origin),
             resource_server_url=AnyHttpUrl(settings.public_url),
             required_scopes=[READ_SCOPE],
             validate_token_resource=True,
@@ -137,7 +138,9 @@ def create_server(
 def create_app(settings: Settings, **kwargs):
     """serve authenticated MCP on a single bounded HTTP endpoint"""
     public = urlsplit(settings.public_url)
-    server = create_server(settings, **kwargs)
+    verifier = kwargs.pop("verifier", None) or create_auth(settings)
+    oauth_routes = verifier.provider.get_routes("/mcp")
+    server = create_server(settings, verifier=verifier, **kwargs)
     app = server.streamable_http_app(
         stateless_http=True,
         json_response=True,
@@ -156,5 +159,10 @@ def create_app(settings: Settings, **kwargs):
         return JSONResponse({"status": "ok"})
 
     app.routes.append(Route("/health", health))
+    existing_paths = {route.path for route in app.routes}
+    app.routes.extend(route for route in oauth_routes if route.path not in existing_paths)
     app.add_middleware(RequestLimitMiddleware)
+    app.add_middleware(
+        TrustedHostMiddleware, allowed_hosts=[public.hostname, "127.0.0.1", "localhost"]
+    )
     return app

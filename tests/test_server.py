@@ -11,7 +11,7 @@ from mason.telegram.demo import DEMO_CHAT_ID
 def http_client(auth_setup):
     verifier, key, claims = auth_setup
     app = create_app(verifier.settings, verifier=verifier)
-    token = jwt.encode(claims, key, algorithm="RS256", headers={"kid": "test"})
+    token = jwt.encode(claims, key, algorithm="HS256")
     headers = {
         "Authorization": f"Bearer {token}",
         "Accept": "application/json, text/event-stream",
@@ -71,9 +71,9 @@ def test_http_rejects_missing_or_invalid_tokens(http_client):
 
 
 def test_http_rejects_another_owner(http_client, auth_setup):
-    _, key, claims = auth_setup
-    claims["sub"] = "someone-else"
-    token = jwt.encode(claims, key, algorithm="RS256", headers={"kid": "test"})
+    verifier, key, claims = auth_setup
+    verifier.provider._token_validator.verify_token.return_value.subject = "456"
+    token = jwt.encode(claims, key, algorithm="HS256")
     response = http_client.post("/mcp", json={}, headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 401
 
@@ -82,7 +82,7 @@ def test_discovery_is_public_but_contains_no_telegram_data(http_client):
     response = http_client.get("/.well-known/oauth-protected-resource/mcp")
     assert response.status_code == 200
     assert response.json()["resource"] == "https://mason.example.com/mcp"
-    assert response.json()["scopes_supported"] == ["telegram:read"]
+    assert response.json()["scopes_supported"] == ["read:user"]
     assert "owner" not in response.text
 
 
@@ -95,7 +95,7 @@ def test_http_bounds_request_size_and_rate(http_client):
 
 def test_http_rejects_unexpected_host(http_client):
     response = http_client.post("/mcp", json={}, headers={"Host": "evil.example.com"})
-    assert response.status_code == 421
+    assert response.status_code == 400
 
 
 async def test_mcp_errors_do_not_expose_backend_details(auth_setup, caplog):

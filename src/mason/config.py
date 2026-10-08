@@ -14,13 +14,19 @@ class Settings(BaseSettings):
 
     mode: Literal["demo", "telegram"] = "demo"
     public_url: str
-    oauth_issuer: str
-    oauth_jwks_url: str
-    oauth_owner: str = Field(min_length=1, max_length=512)
+    github_client_id: str = Field(min_length=1)
+    github_client_secret: SecretStr = Field(min_length=12)
+    github_owner_id: int = Field(gt=0)
     port: int = Field(default=8000, ge=1024, le=65535)
     timezone: str = "Asia/Nicosia"
 
-    @field_validator("public_url", "oauth_issuer", "oauth_jwks_url")
+    @property
+    def origin(self) -> str:
+        """use the same origin for the OAuth proxy and MCP endpoint"""
+        url = urlsplit(self.public_url)
+        return f"{url.scheme}://{url.netloc}"
+
+    @field_validator("public_url")
     @classmethod
     def validate_url(cls, value: str) -> str:
         """accept explicit HTTPS URLs without credentials"""
