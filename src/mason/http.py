@@ -32,4 +32,28 @@ class RequestLimitMiddleware:
                 await response(scope, receive, send)
                 return
             self.requests.append(now)
+            if scope["method"] == "POST":
+                original_receive = receive
+                body = bytearray()
+                while True:
+                    message = await original_receive()
+                    if message["type"] == "http.disconnect":
+                        return
+                    body.extend(message.get("body", b""))
+                    if len(body) > 16384:
+                        response = JSONResponse({"error": "request too large"}, status_code=413)
+                        await response(scope, original_receive, send)
+                        return
+                    if not message.get("more_body", False):
+                        break
+                pending = True
+
+                async def replay():
+                    nonlocal pending
+                    if pending:
+                        pending = False
+                        return {"type": "http.request", "body": bytes(body), "more_body": False}
+                    return await original_receive()
+
+                receive = replay
         await self.app(scope, receive, send)

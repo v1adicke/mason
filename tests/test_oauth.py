@@ -33,6 +33,28 @@ def test_unknown_client_callback_is_rejected(auth_setup):
         assert response.status_code == 400
 
 
+def test_registration_cannot_request_repo_permissions(auth_setup):
+    verifier, _, _ = auth_setup
+    app = create_app(verifier.settings, verifier=verifier)
+    with TestClient(app, base_url=verifier.settings.origin) as client:
+        response = client.post(
+            "/register",
+            json={
+                "redirect_uris": ["https://chatgpt.com/connector_platform_oauth_redirect"],
+                "scope": "repo",
+            },
+        )
+        assert response.status_code == 400
+
+
+def test_oauth_post_bodies_are_bounded(auth_setup):
+    verifier, _, _ = auth_setup
+    app = create_app(verifier.settings, verifier=verifier)
+    with TestClient(app, base_url=verifier.settings.origin) as client:
+        for path in ("/register", "/token", "/consent"):
+            assert client.post(path, content="x" * 17000).status_code == 413
+
+
 def test_authorization_requires_consent_before_github_redirect(auth_setup):
     verifier, _, _ = auth_setup
     app = create_app(verifier.settings, verifier=verifier)
