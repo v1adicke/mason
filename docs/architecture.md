@@ -15,6 +15,12 @@ issues signed reference tokens bound to the public `/mcp` URL, then validates up
 through GitHub. Mason checks the signature, issuer, audience, expiry, and numeric owner ID.
 OAuth discovery is public; Telegram tools are not.
 
+The optional `mason start` command supervises the server and a temporary `cloudflared` process.
+It checks setup and the local port first, passes the generated public URL to the server, and
+saves it only after checking the public endpoint. It does not change account settings on
+GitHub or ChatGPT. Both child processes stop on interruption or when one of them exits.
+The standalone `mason serve` command still works with an independently managed tunnel.
+
 Only GitHub's `read:user` scope is requested. It identifies the caller; the Telegram allowlist
 is a separate server-side policy. The proxy keeps consent and PKCE enabled, allows only known
 ChatGPT callbacks and loopback clients, and encrypts OAuth state in `~/.local/share/mason/oauth`.

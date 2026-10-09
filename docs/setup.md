@@ -134,6 +134,25 @@ it by either name instead of the owner's profile name.
 
 ## restarting and revoking access
 
+After the first setup, start both processes from one terminal:
+
+```bash
+uv run mason start
+```
+
+Stop any separately running Mason server and tunnel first. The command refuses a busy server
+port, finds `cloudflared` on PATH or in `~/.local/bin`, and starts a new Quick Tunnel. It waits
+for public HTTPS, OAuth discovery, and anonymous access refusal before saving the generated
+MCP URL in the private `.env` file. If startup fails, the previous URL stays in the file.
+
+Use the printed callback in the GitHub OAuth app and the printed MCP URL in ChatGPT. These
+account settings still need updating manually. The check confirms server readiness, not that
+the ChatGPT connection has already been updated. Ctrl+C stops both child processes; if either
+process exits, Mason stops the other too. This command runs in the foreground, not as a service.
+Raw server and tunnel output is suppressed, and the command prints only setup status and
+public URLs. Use the separate `mason serve` and `cloudflared` commands above when diagnosing
+a startup failure locally, without sharing raw output that might contain private data.
+
 OAuth state and upstream tokens are encrypted in `~/.local/share/mason/oauth`, outside the
 checkout. The directory must have permissions `700`; new files use `600`. Restarting Mason
 keeps client registrations and token mappings. Changing the GitHub app secret makes the old

@@ -51,6 +51,11 @@ uv run mason serve
 The first trial uses a temporary URL. OAuth state is encrypted outside the repo, so restarting
 Mason keeps the client registration. Restarting the tunnel still changes the public URL.
 
+Once setup is done, `uv run mason start` runs the server and temporary tunnel together. It
+checks the public endpoint, saves the new URL locally, and prints the callback to use on
+GitHub. Ctrl+C stops both processes. The address still changes on each fresh tunnel, so the
+ChatGPT connection needs updating too. `mason serve` stays available for a tunnel I run myself.
+
 ## a few things to know
 
 Mason exposes read-only operations, but the Telegram session itself is a powerful credential.
@@ -72,5 +77,5 @@ The layout is small: `server.py` exposes the tools, `telegram/service.py` checks
 search limits, and `telegram/client.py` talks to Telegram. More on the tradeoffs in
 [the architecture notes](docs/architecture.md).
 
-Next up: get the real connection working, see where keyword search falls short, then consider
-a local text index.
+Next up: make the connection easier to keep running, see where keyword search falls short,
+then consider a local text index.
