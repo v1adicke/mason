@@ -45,6 +45,7 @@ class DemoBackend:
         query: str | None = None,
         before_id: int = 0,
         date_to: datetime | None = None,
+        sender_id: int | None = None,
     ) -> list[Message]:
         return [
             message
@@ -52,6 +53,7 @@ class DemoBackend:
             if (not before_id or message.message_id < before_id)
             and (date_to is None or message.date < date_to)
             and (query is None or query.casefold() in message.text.casefold())
+            and (sender_id is None or message.sender_id == sender_id)
         ][:limit]
 
     async def get_context(

@@ -70,6 +70,23 @@ def test_http_rejects_missing_or_invalid_tokens(http_client):
         assert "resource_metadata=" in response.headers["WWW-Authenticate"]
 
 
+def test_authenticated_http_sender_filter(http_client):
+    tools = rpc(http_client, "tools/list").json()["result"]["tools"]
+    search = next(tool for tool in tools if tool["name"] == "search_messages")
+    assert "sender_id" in search["inputSchema"]["properties"]
+    assert "sender_id" not in search["inputSchema"]["required"]
+    for sender_id, expected_ids in ((1, [4, 1]), (999, [])):
+        result = rpc(
+            http_client,
+            "tools/call",
+            {"name": "search_messages", "arguments": {"query": "maths", "sender_id": sender_id}},
+        ).json()["result"]
+        assert not result.get("isError")
+        assert [message["message_id"] for message in result["structuredContent"]["messages"]] == (
+            expected_ids
+        )
+
+
 def test_http_rejects_another_owner(http_client, auth_setup):
     verifier, key, claims = auth_setup
     verifier.provider._token_validator.verify_token.return_value.subject = "456"

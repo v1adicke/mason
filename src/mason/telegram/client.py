@@ -105,11 +105,17 @@ class TelethonBackend:
         query: str | None = None,
         before_id: int = 0,
         date_to: datetime | None = None,
+        sender_id: int | None = None,
     ) -> list[Message]:
         chat = await self.get_chat(chat_id)
         messages = []
         async for message in self.client.iter_messages(
-            chat_id, limit=limit, search=query, offset_id=before_id, offset_date=date_to
+            chat_id,
+            limit=limit,
+            search=query,
+            offset_id=before_id,
+            offset_date=date_to,
+            from_user=sender_id,
         ):
             if isinstance(message, (types.Message, types.MessageService)):
                 messages.append(self._message(chat, message))

@@ -124,11 +124,14 @@ class TelegramService:
         date_to: datetime | None = None,
         limit: int = 20,
         cursor: str | None = None,
+        sender_id: int | None = None,
     ) -> MessagePage:
         query = query.strip()
         if not query or len(query) > 256:
             raise ServiceError("invalid_query: use between 1 and 256 characters")
-        return await self._read(query, chat_id, date_from, date_to, limit, cursor)
+        if sender_id is not None and (type(sender_id) is not int or sender_id == 0):
+            raise ServiceError("invalid_sender: use a numeric sender_id from a returned message")
+        return await self._read(query, chat_id, date_from, date_to, limit, cursor, sender_id)
 
     async def get_recent_messages(
         self, chat_id: int, limit: int = 20, cursor: str | None = None
@@ -143,6 +146,7 @@ class TelegramService:
         date_to: datetime | None,
         limit: int,
         cursor: str | None,
+        sender_id: int | None = None,
     ) -> MessagePage:
         if not 1 <= limit <= 50:
             raise ServiceError("invalid_limit: choose between 1 and 50 messages")
@@ -154,7 +158,7 @@ class TelegramService:
         if chat_id is not None:
             self._check_chat(chat_id)
         chat_ids = [chat_id] if chat_id is not None else self.allowed_chats
-        key = self._key("messages", query, chat_ids, date_from, date_to)
+        key = self._key("messages", query, chat_ids, date_from, date_to, sender_id)
         offsets = self._decode_cursor(cursor, key, {})
         if not isinstance(offsets, dict) or any(
             chat not in {str(value) for value in chat_ids} or type(offset) is not int or offset < 0
@@ -170,10 +174,13 @@ class TelegramService:
                     query=query,
                     before_id=offsets.get(str(current_chat), 0),
                     date_to=date_to,
+                    sender_id=sender_id,
                 )
                 for message in messages:
                     if message.chat.id != current_chat:
                         raise ServiceError("invalid_source: unexpected chat in the result")
+                    if sender_id is not None and message.sender_id != sender_id:
+                        raise ServiceError("invalid_source: unexpected sender in the result")
                     if date_from and message.date < date_from:
                         continue
                     if date_to and message.date >= date_to:

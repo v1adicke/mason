@@ -94,3 +94,44 @@ async def test_service_messages_are_kept_in_recent_history():
         (2, "message"),
     ]
     assert messages[0].text == ""
+
+
+async def test_sender_filter_is_sent_to_telethon_with_chat_and_pagination():
+    from mason.telegram.models import Chat
+
+    chat_id = -1001234567890
+    backend = TelethonBackend.__new__(TelethonBackend)
+    backend.get_chat = AsyncMock(
+        return_value=Chat(id=chat_id, title="Study group", kind="supergroup")
+    )
+    backend.client = AsyncMock()
+    calls = []
+
+    async def iterate(peer, **kwargs):
+        calls.append((peer, kwargs))
+        yield types.Message(
+            id=8,
+            peer_id=types.PeerChannel(1234567890),
+            from_id=types.PeerUser(123),
+            date=datetime(2026, 1, 1, tzinfo=UTC),
+            message="a test message",
+        )
+
+    backend.client.iter_messages = iterate
+    date_to = datetime(2026, 2, 1, tzinfo=UTC)
+    result = await backend.read_messages(
+        chat_id, limit=2, query="maths", before_id=15, date_to=date_to, sender_id=123
+    )
+    assert result[0].sender_id == 123
+    assert calls == [
+        (
+            chat_id,
+            {
+                "limit": 2,
+                "search": "maths",
+                "offset_id": 15,
+                "offset_date": date_to,
+                "from_user": 123,
+            },
+        )
+    ]

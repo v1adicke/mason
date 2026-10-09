@@ -112,10 +112,13 @@ def create_server(
         date_to: Annotated[AwareDatetime | None, Field(description="exclusive end")] = None,
         limit: Limit = 20,
         cursor: Cursor | None = None,
+        sender_id: Annotated[
+            int | None, Field(description="numeric sender_id from a returned message")
+        ] = None,
     ) -> MessagePage:
-        """search keywords in one allowed chat or all allowed chats"""
+        """search keywords with optional chat, date, and sender filters"""
         return await safe_read(
-            service.search_messages(query, chat_id, date_from, date_to, limit, cursor)
+            service.search_messages(query, chat_id, date_from, date_to, limit, cursor, sender_id)
         )
 
     @server.tool(annotations=annotations)

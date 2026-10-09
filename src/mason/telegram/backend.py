@@ -21,6 +21,7 @@ class TelegramBackend(Protocol):
         query: str | None = None,
         before_id: int = 0,
         date_to: datetime | None = None,
+        sender_id: int | None = None,
     ) -> list[Message]: ...
 
     async def get_context(

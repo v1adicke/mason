@@ -108,3 +108,50 @@ async def test_global_search_keeps_per_chat_positions():
     assert len(set(messages)) == 4
     assert messages == [(99, 4), (DEMO_CHAT_ID, 4), (99, 1), (DEMO_CHAT_ID, 1)]
     assert cursor is None
+
+
+async def test_sender_filter_keeps_matching_messages_across_pages(service):
+    for message in service.backend.messages:
+        message.text = "maths homework"
+    service.backend.messages[1].sender_id = 2
+    ids = []
+    cursor = None
+    for _ in range(3):
+        page = await service.search_messages("maths", sender_id=1, limit=1, cursor=cursor)
+        ids.extend(message.message_id for message in page.messages)
+        assert all(message.sender_id == 1 for message in page.messages)
+        cursor = page.next_cursor
+    assert ids == [4, 3, 1]
+    assert cursor is None
+    other = await service.search_messages("maths", sender_id=2)
+    assert [message.message_id for message in other.messages] == [2]
+    absent = await service.search_messages("maths", sender_id=999)
+    assert absent.messages == []
+
+
+async def test_sender_filter_cannot_be_changed_mid_search(service):
+    page = await service.search_messages("maths", sender_id=1, limit=1)
+    for sender_id in (2, None):
+        with pytest.raises(ServiceError, match="invalid_cursor"):
+            await service.search_messages("maths", sender_id=sender_id, cursor=page.next_cursor)
+
+
+@pytest.mark.parametrize("sender_id", [0, True, "demo sender"])
+async def test_invalid_sender_does_not_reach_telegram(service, sender_id):
+    service.backend.read_messages = AsyncMock()
+    with pytest.raises(ServiceError, match="invalid_sender"):
+        await service.search_messages("maths", sender_id=sender_id)
+    service.backend.read_messages.assert_not_awaited()
+
+
+async def test_sender_filter_does_not_bypass_the_chat_allowlist(service):
+    service.backend.read_messages = AsyncMock()
+    with pytest.raises(ServiceError, match="chat_not_allowed"):
+        await service.search_messages("maths", chat_id=123, sender_id=1)
+    service.backend.read_messages.assert_not_awaited()
+
+
+async def test_an_unexpected_sender_is_rejected(service):
+    service.backend.read_messages = AsyncMock(return_value=service.backend.messages[:1])
+    with pytest.raises(ServiceError, match="unexpected sender"):
+        await service.search_messages("maths", sender_id=2)
