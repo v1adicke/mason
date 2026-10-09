@@ -64,9 +64,14 @@ class TelethonBackend:
             kind = "private"
         else:
             raise ValueError("chat is unavailable")
+        title = (
+            "Saved Messages (Избранное)"
+            if isinstance(entity, types.User) and entity.is_self
+            else utils.get_display_name(entity)[:200]
+        )
         return Chat(
             id=utils.get_peer_id(entity),
-            title=utils.get_display_name(entity)[:200],
+            title=title,
             kind=kind,
             username=getattr(entity, "username", None),
         )

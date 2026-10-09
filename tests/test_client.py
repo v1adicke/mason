@@ -4,6 +4,28 @@ from unittest.mock import AsyncMock
 from telethon.tl import types
 
 from mason.telegram.client import TelethonBackend
+from mason.telegram.service import TelegramService
+
+
+async def test_saved_messages_can_be_found_by_its_telegram_name():
+    backend = TelethonBackend.__new__(TelethonBackend)
+    backend.client = AsyncMock()
+    backend.client.get_entity.return_value = types.User(
+        id=123, first_name="Demo owner", is_self=True
+    )
+    service = TelegramService(backend, [123], "Asia/Nicosia")
+    for query in ("Saved Messages", "Избранное"):
+        page = await service.list_chats(query, 20, None)
+        assert [chat.id for chat in page.chats] == [123]
+        assert page.chats[0].kind == "private"
+
+
+async def test_other_private_chats_keep_their_display_name():
+    backend = TelethonBackend.__new__(TelethonBackend)
+    backend.client = AsyncMock()
+    backend.client.get_entity.return_value = types.User(id=456, first_name="Demo contact")
+    chat = await backend.get_chat(456)
+    assert chat.title == "Demo contact"
 
 
 async def test_telethon_context_reads_neighbors_without_assuming_dense_ids():
