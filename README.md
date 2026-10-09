@@ -64,6 +64,10 @@ checks the public endpoint, saves the new URL locally, and prints the callback t
 GitHub. Ctrl+C stops both processes. The address still changes on each fresh tunnel, so the
 ChatGPT connection needs updating too. `mason serve` stays available for a tunnel I run myself.
 
+For a stable address, Mason also supports `mason start --tunnel ngrok` with the development
+domain assigned to an ngrok account. Follow [the stable URL guide](docs/stable-url.md) for the
+one-time setup. No domain purchase is needed for that option.
+
 ## a few things to know
 
 Mason exposes read-only operations, but the Telegram session itself is a powerful credential.

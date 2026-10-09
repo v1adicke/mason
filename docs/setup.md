@@ -200,6 +200,9 @@ applications. A leaked Telegram session must also be revoked in Telegram's devic
 For a service that stays on, add a stable hostname later. Treat the local OAuth directory and
 environment file as credentials, and keep both out of Git and shared backups.
 
+The [stable URL guide](stable-url.md) covers the optional ngrok account domain and
+`mason start --tunnel ngrok`. The default `mason start` still uses a temporary Quick Tunnel.
+
 ## if something fails
 
 - `401`: check owner ID, token expiry, and GitHub authorization; reconnect after a restart
