@@ -102,6 +102,28 @@ def test_authenticated_http_document_lookup(http_client):
     assert files[0]["file_size"] == 1024
 
 
+def test_authenticated_http_recent_messages_by_date(http_client):
+    tools = rpc(http_client, "tools/list").json()["result"]["tools"]
+    recent = next(tool for tool in tools if tool["name"] == "get_recent_messages")
+    for field in ("date_from", "date_to"):
+        assert field in recent["inputSchema"]["properties"]
+        assert field not in recent["inputSchema"]["required"]
+    result = rpc(
+        http_client,
+        "tools/call",
+        {
+            "name": "get_recent_messages",
+            "arguments": {
+                "chat_id": DEMO_CHAT_ID,
+                "date_from": "2026-01-02T14:00:00+02:00",
+                "date_to": "2026-01-04T14:00:00+02:00",
+            },
+        },
+    ).json()["result"]
+    assert not result.get("isError")
+    assert [message["message_id"] for message in result["structuredContent"]["messages"]] == [3, 2]
+
+
 def test_http_rejects_another_owner(http_client, auth_setup):
     verifier, key, claims = auth_setup
     verifier.provider._token_validator.verify_token.return_value.subject = "456"

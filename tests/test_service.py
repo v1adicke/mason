@@ -58,6 +58,45 @@ async def test_dates_use_an_inclusive_start_and_exclusive_end(service):
         await service.search_messages("homework", date_from=datetime(2026, 1, 1))
 
 
+async def test_recent_messages_can_page_through_a_date_range(service):
+    date_from = datetime.fromisoformat("2026-01-02T14:00:00+02:00")
+    date_to = datetime.fromisoformat("2026-01-04T14:00:00+02:00")
+    first = await service.get_recent_messages(
+        DEMO_CHAT_ID, limit=1, date_from=date_from, date_to=date_to
+    )
+    second = await service.get_recent_messages(
+        DEMO_CHAT_ID, limit=1, cursor=first.next_cursor, date_from=date_from, date_to=date_to
+    )
+    assert first.next_cursor is not None
+    assert [message.message_id for message in first.messages + second.messages] == [3, 2]
+    assert second.next_cursor is None
+    with pytest.raises(ServiceError, match="invalid_cursor"):
+        await service.get_recent_messages(DEMO_CHAT_ID, cursor=first.next_cursor)
+
+
+@pytest.mark.parametrize(
+    ("date_from", "date_to"),
+    [
+        (datetime(2026, 1, 1), None),
+        (None, datetime(2026, 1, 4)),
+        (datetime(2026, 1, 4, tzinfo=UTC), datetime(2026, 1, 4, tzinfo=UTC)),
+        (datetime(2026, 1, 4, tzinfo=UTC), datetime(2026, 1, 2, tzinfo=UTC)),
+    ],
+)
+async def test_invalid_recent_dates_never_reach_telegram(service, date_from, date_to):
+    service.backend.read_messages = AsyncMock()
+    with pytest.raises(ServiceError, match="invalid_date"):
+        await service.get_recent_messages(DEMO_CHAT_ID, date_from=date_from, date_to=date_to)
+    service.backend.read_messages.assert_not_awaited()
+
+
+async def test_recent_date_filters_do_not_bypass_chat_access(service):
+    service.backend.read_messages = AsyncMock()
+    with pytest.raises(ServiceError, match="chat_not_allowed"):
+        await service.get_recent_messages(123, date_from=datetime(2026, 1, 2, tzinfo=UTC))
+    service.backend.read_messages.assert_not_awaited()
+
+
 async def test_context_uses_existing_messages_with_gaps(service):
     for message, new_id in zip(service.backend.messages, [2, 8, 15, 30], strict=True):
         message.message_id = new_id

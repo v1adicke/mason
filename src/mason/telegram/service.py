@@ -153,9 +153,14 @@ class TelegramService:
         )
 
     async def get_recent_messages(
-        self, chat_id: int, limit: int = 20, cursor: str | None = None
+        self,
+        chat_id: int,
+        limit: int = 20,
+        cursor: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
     ) -> MessagePage:
-        return await self._read(None, chat_id, None, None, limit, cursor)
+        return await self._read(None, chat_id, date_from, date_to, limit, cursor)
 
     async def _read(
         self,

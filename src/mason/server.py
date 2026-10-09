@@ -79,7 +79,9 @@ def create_server(
             "means manual lookup. Read context before drawing conclusions. Pagination covers "
             "live Telegram results, not a fixed snapshot. Follow next_cursor on empty document "
             "pages before claiming no matches. Document results contain metadata and captions, "
-            "not file contents. "
+            "not file contents. Use get_recent_messages to read a date range without keywords. "
+            "Date bounds need timezone offsets; date_from is inclusive and date_to is exclusive. "
+            f"The configured timezone is {settings.timezone}. "
             + (
                 "Demo mode: all messages are fictional test data."
                 if settings.mode == "demo"
@@ -155,10 +157,16 @@ def create_server(
 
     @server.tool(annotations=annotations)
     async def get_recent_messages(
-        chat_id: int, limit: Limit = 20, cursor: Cursor | None = None
+        chat_id: Annotated[int, Field(description="numeric chat id returned by list_chats")],
+        limit: Limit = 20,
+        cursor: Cursor | None = None,
+        date_from: Annotated[AwareDatetime | None, Field(description="inclusive start")] = None,
+        date_to: Annotated[AwareDatetime | None, Field(description="exclusive end")] = None,
     ) -> MessagePage:
-        """read recent messages from one allowed chat"""
-        return await safe_read(service.get_recent_messages(chat_id, limit, cursor))
+        """read messages from one allowed chat with optional date limits"""
+        return await safe_read(
+            service.get_recent_messages(chat_id, limit, cursor, date_from, date_to)
+        )
 
     return server
 
