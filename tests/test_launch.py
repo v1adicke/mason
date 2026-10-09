@@ -61,6 +61,28 @@ def test_busy_port_is_refused():
             check_port(listener.getsockname()[1])
 
 
+def test_running_server_with_address_reuse_is_still_refused():
+    with socket.socket() as listener:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        with pytest.raises(ValueError, match="busy"):
+            check_port(listener.getsockname()[1])
+
+
+def test_closed_connections_do_not_block_a_restart():
+    with socket.socket() as listener:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        port = listener.getsockname()[1]
+        with socket.create_connection(("127.0.0.1", port), timeout=1) as client:
+            connection, _ = listener.accept()
+            connection.close()
+            assert client.recv(1) == b""
+    check_port(port)
+
+
 async def test_tunnel_logs_are_not_echoed(capsys):
     process = Process(b"private log details\n| https://fictional-new.trycloudflare.com |\n")
     process.finish(0)

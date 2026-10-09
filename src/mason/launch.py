@@ -29,6 +29,7 @@ def find_executable(name: str) -> str:
 def check_port(port: int) -> None:
     """refuse to replace a running server"""
     with socket.socket() as listener:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             listener.bind(("127.0.0.1", port))
         except OSError:
