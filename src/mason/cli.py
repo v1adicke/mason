@@ -11,6 +11,7 @@ from telethon.errors import SessionPasswordNeededError
 
 from mason.config import Settings, TelegramSettings
 from mason.doctor import doctor
+from mason.launch import start
 from mason.server import create_app
 from mason.setup import configure
 from mason.telegram.client import create_client, prepare_session
@@ -63,7 +64,9 @@ def main() -> None:
     logging.getLogger("fastmcp").setLevel(logging.CRITICAL)
     logging.getLogger("telethon").setLevel(logging.CRITICAL)
     parser = argparse.ArgumentParser(prog="mason")
-    parser.add_argument("command", choices=["serve", "login", "chats", "configure", "doctor"])
+    parser.add_argument(
+        "command", choices=["start", "serve", "login", "chats", "configure", "doctor"]
+    )
     parser.add_argument("target", nargs="?", choices=["github", "telegram"])
     parser.add_argument("--network", action="store_true")
     args = parser.parse_args()
@@ -72,7 +75,9 @@ def main() -> None:
     if args.network and args.command != "doctor":
         parser.error("--network is only used with doctor")
     try:
-        if args.command == "serve":
+        if args.command == "start":
+            asyncio.run(start())
+        elif args.command == "serve":
             settings = Settings()
             uvicorn.run(
                 create_app(settings),
@@ -90,6 +95,8 @@ def main() -> None:
                 parser.exit(1)
         else:
             asyncio.run(list_local_chats())
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        print("Mason stopped")
     except ValidationError as error:
         fields = sorted({str(item["loc"][0]) for item in error.errors()})
         parser.exit(1, f"check local configuration: {', '.join(fields)}\n")
