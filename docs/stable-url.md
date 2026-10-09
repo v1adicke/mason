@@ -46,6 +46,42 @@ Keep using `mason start --tunnel ngrok`. A normal restart uses the same developm
 the GitHub callback and ChatGPT MCP URL stay the same. Ctrl+C stops the server and agent.
 The launcher's checks do not replace a real ChatGPT sign-in and tool-call test.
 
+## running in the background on Linux
+
+Once the connection works, a systemd user service can keep it running after the terminal closes.
+Create `~/.config/systemd/user/mason.service`, replacing the paths with your own checkout:
+
+```ini
+[Unit]
+Description=Mason personal MCP server
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/path/to/mason
+ExecStart=/path/to/mason/.venv/bin/mason start --tunnel ngrok
+Restart=on-failure
+RestartSec=15
+TimeoutStopSec=20
+UMask=0077
+
+[Install]
+WantedBy=default.target
+```
+
+Stop any terminal copy first, then enable the service:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now mason.service
+```
+
+Use `systemctl --user restart mason.service` after local configuration changes, and
+`systemctl --user disable --now mason.service` to stop it and turn off automatic startup.
+The service starts with your user session. The laptop still needs to stay awake and online.
+
+## free plan limits
+
 The free plan has request and transfer quotas. It also shows a notice for browser HTML pages;
 ngrok documents that programmatic API requests are not affected. A browser visiting the OAuth
 pages may need to acknowledge that notice. Paid plans and a Cloudflare Tunnel with a domain
