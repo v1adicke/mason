@@ -129,9 +129,28 @@ class TelegramService:
         query = query.strip()
         if not query or len(query) > 256:
             raise ServiceError("invalid_query: use between 1 and 256 characters")
-        if sender_id is not None and (type(sender_id) is not int or sender_id == 0):
-            raise ServiceError("invalid_sender: use a numeric sender_id from a returned message")
         return await self._read(query, chat_id, date_from, date_to, limit, cursor, sender_id)
+
+    async def find_documents(
+        self,
+        query: str | None = None,
+        chat_id: int | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        limit: int = 20,
+        cursor: str | None = None,
+        sender_id: int | None = None,
+        file_name: str | None = None,
+    ) -> MessagePage:
+        """find document messages without downloading their contents"""
+        query = query.strip() if query is not None else None
+        file_name = file_name.strip() if file_name is not None else None
+        for name, value in (("query", query), ("file_name", file_name)):
+            if value is not None and (not value or len(value) > 256):
+                raise ServiceError(f"invalid_{name}: use between 1 and 256 characters")
+        return await self._read(
+            query, chat_id, date_from, date_to, limit, cursor, sender_id, True, file_name
+        )
 
     async def get_recent_messages(
         self, chat_id: int, limit: int = 20, cursor: str | None = None
@@ -147,9 +166,13 @@ class TelegramService:
         limit: int,
         cursor: str | None,
         sender_id: int | None = None,
+        documents_only: bool = False,
+        file_name: str | None = None,
     ) -> MessagePage:
         if not 1 <= limit <= 50:
             raise ServiceError("invalid_limit: choose between 1 and 50 messages")
+        if sender_id is not None and (type(sender_id) is not int or sender_id == 0):
+            raise ServiceError("invalid_sender: use a numeric sender_id from a returned message")
         for date in (date_from, date_to):
             if date is not None and date.utcoffset() is None:
                 raise ServiceError("invalid_date: include a timezone offset")
@@ -158,7 +181,9 @@ class TelegramService:
         if chat_id is not None:
             self._check_chat(chat_id)
         chat_ids = [chat_id] if chat_id is not None else self.allowed_chats
-        key = self._key("messages", query, chat_ids, date_from, date_to, sender_id)
+        key = self._key(
+            "messages", query, chat_ids, date_from, date_to, sender_id, documents_only, file_name
+        )
         offsets = self._decode_cursor(cursor, key, {})
         if not isinstance(offsets, dict) or any(
             chat not in {str(value) for value in chat_ids} or type(offset) is not int or offset < 0
@@ -166,6 +191,8 @@ class TelegramService:
         ):
             raise ServiceError("invalid_cursor: expected message offsets")
         matches = []
+        scanned_offsets = {}
+        more_documents = False
         async with self._operation():
             for current_chat in chat_ids:
                 messages = await self.backend.read_messages(
@@ -175,15 +202,29 @@ class TelegramService:
                     before_id=offsets.get(str(current_chat), 0),
                     date_to=date_to,
                     sender_id=sender_id,
+                    documents_only=documents_only,
                 )
+                if documents_only and messages:
+                    scanned_offsets[str(current_chat)] = messages[-1].message_id
+                    if len(messages) == limit + 1 and (
+                        date_from is None or messages[-1].date >= date_from
+                    ):
+                        more_documents = True
                 for message in messages:
                     if message.chat.id != current_chat:
                         raise ServiceError("invalid_source: unexpected chat in the result")
                     if sender_id is not None and message.sender_id != sender_id:
                         raise ServiceError("invalid_source: unexpected sender in the result")
+                    if documents_only and message.media_type != "document":
+                        raise ServiceError("invalid_source: expected a document message")
                     if date_from and message.date < date_from:
                         continue
                     if date_to and message.date >= date_to:
+                        continue
+                    if (
+                        file_name
+                        and file_name.casefold() not in (message.file_name or "").casefold()
+                    ):
                         continue
                     matches.append(message)
         matches.sort(
@@ -192,9 +233,18 @@ class TelegramService:
         selected = matches[:limit]
         for message in selected:
             offsets[str(message.chat.id)] = message.message_id
+        if documents_only:
+            pending_chats = {str(message.chat.id) for message in matches[limit:]}
+            offsets.update(
+                (chat, offset)
+                for chat, offset in scanned_offsets.items()
+                if chat not in pending_chats
+            )
         return MessagePage(
             messages=self._format_messages(selected),
-            next_cursor=self._encode_cursor(key, offsets) if len(matches) > limit else None,
+            next_cursor=self._encode_cursor(key, offsets)
+            if len(matches) > limit or more_documents
+            else None,
             searched_chats=chat_ids,
             timezone=str(self.timezone),
         )

@@ -27,6 +27,10 @@ class DemoBackend:
             )
             for number, text in enumerate(texts, start=1)
         ]
+        self.messages[1].media_type = "document"
+        self.messages[1].file_name = "discrete_maths.pdf"
+        self.messages[1].mime_type = "application/pdf"
+        self.messages[1].file_size = 1024
 
     async def connect(self) -> None:
         pass
@@ -46,6 +50,7 @@ class DemoBackend:
         before_id: int = 0,
         date_to: datetime | None = None,
         sender_id: int | None = None,
+        documents_only: bool = False,
     ) -> list[Message]:
         return [
             message
@@ -54,6 +59,7 @@ class DemoBackend:
             and (date_to is None or message.date < date_to)
             and (query is None or query.casefold() in message.text.casefold())
             and (sender_id is None or message.sender_id == sender_id)
+            and (not documents_only or message.media_type == "document")
         ][:limit]
 
     async def get_context(

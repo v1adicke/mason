@@ -95,6 +95,10 @@ class TelethonBackend:
             edited_at=message.edit_date,
             media_type=media_type,
             file_name=message.file.name[:200] if message.file and message.file.name else None,
+            mime_type=message.file.mime_type[:100]
+            if message.file and message.file.mime_type
+            else None,
+            file_size=message.file.size if message.file else None,
         )
 
     async def read_messages(
@@ -106,6 +110,7 @@ class TelethonBackend:
         before_id: int = 0,
         date_to: datetime | None = None,
         sender_id: int | None = None,
+        documents_only: bool = False,
     ) -> list[Message]:
         chat = await self.get_chat(chat_id)
         messages = []
@@ -116,6 +121,7 @@ class TelethonBackend:
             offset_id=before_id,
             offset_date=date_to,
             from_user=sender_id,
+            **({"filter": types.InputMessagesFilterDocument()} if documents_only else {}),
         ):
             if isinstance(message, (types.Message, types.MessageService)):
                 messages.append(self._message(chat, message))

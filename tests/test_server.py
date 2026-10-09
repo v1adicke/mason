@@ -43,6 +43,7 @@ def test_authenticated_http_search_and_context(http_client):
     assert {tool["name"] for tool in tools} == {
         "list_chats",
         "search_messages",
+        "find_documents",
         "get_message_context",
         "get_recent_messages",
     }
@@ -85,6 +86,20 @@ def test_authenticated_http_sender_filter(http_client):
         assert [message["message_id"] for message in result["structuredContent"]["messages"]] == (
             expected_ids
         )
+
+
+def test_authenticated_http_document_lookup(http_client):
+    result = rpc(
+        http_client,
+        "tools/call",
+        {"name": "find_documents", "arguments": {"file_name": "maths.pdf"}},
+    ).json()["result"]
+    assert not result.get("isError")
+    files = result["structuredContent"]["messages"]
+    assert [message["message_id"] for message in files] == [2]
+    assert files[0]["file_name"] == "discrete_maths.pdf"
+    assert files[0]["mime_type"] == "application/pdf"
+    assert files[0]["file_size"] == 1024
 
 
 def test_http_rejects_another_owner(http_client, auth_setup):

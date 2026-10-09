@@ -25,6 +25,8 @@ class Message(BaseModel):
     edited_at: datetime | None = None
     media_type: str | None = None
     file_name: str | None = None
+    mime_type: str | None = None
+    file_size: int | None = None
 
 
 class ChatPage(BaseModel):
