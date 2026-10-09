@@ -129,6 +129,9 @@ Replace those placeholder IDs with real IDs from the local command. Restart Maso
 the ChatGPT app if needed, and search for a message I can verify manually. Compare the author,
 date, text, and context against Telegram. Stop the server before repeating local session setup.
 
+Mason labels the owner's self-chat as `Saved Messages (Избранное)`, so title search can find
+it by either name instead of the owner's profile name.
+
 ## restarting and revoking access
 
 OAuth state and upstream tokens are encrypted in `~/.local/share/mason/oauth`, outside the
@@ -136,6 +139,10 @@ checkout. The directory must have permissions `700`; new files use `600`. Restar
 keeps client registrations and token mappings. Changing the GitHub app secret makes the old
 state unreadable and requires a fresh client registration. Restarting the Quick Tunnel changes
 the URL: update `.env`, the GitHub callback, and the ChatGPT URL.
+
+If ChatGPT does not let you edit the server URL, create a new custom MCP connection for the
+new address and use OAuth with DCR again. Uninstall the old connection so it is not used in
+new chats. Changing the tunnel address does not require another Telegram login.
 
 To stop access immediately, stop Mason or revoke the Mason OAuth grant in GitHub's authorized
 applications. A leaked Telegram session must also be revoked in Telegram's device settings.
