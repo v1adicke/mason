@@ -67,16 +67,19 @@ def main() -> None:
     parser.add_argument(
         "command", choices=["start", "serve", "login", "chats", "configure", "doctor"]
     )
-    parser.add_argument("target", nargs="?", choices=["github", "telegram"])
+    parser.add_argument("target", nargs="?", choices=["github", "telegram", "ngrok"])
+    parser.add_argument("--tunnel", choices=["cloudflare", "ngrok"])
     parser.add_argument("--network", action="store_true")
     args = parser.parse_args()
     if args.target and args.command != "configure":
         parser.error("a target is only used with configure")
     if args.network and args.command != "doctor":
         parser.error("--network is only used with doctor")
+    if args.tunnel and args.command != "start":
+        parser.error("--tunnel is only used with start")
     try:
         if args.command == "start":
-            asyncio.run(start())
+            asyncio.run(start(args.tunnel or "cloudflare"))
         elif args.command == "serve":
             settings = Settings()
             uvicorn.run(

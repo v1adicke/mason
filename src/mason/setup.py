@@ -4,6 +4,8 @@ from pathlib import Path
 
 from dotenv import dotenv_values, set_key
 
+from mason.config import Settings
+
 
 def configure(target: str) -> None:
     """save credentials from hidden prompts in the local environment file"""
@@ -28,12 +30,24 @@ def configure(target: str) -> None:
             "MASON_GITHUB_CLIENT_SECRET": secret,
             "MASON_GITHUB_OWNER_ID": owner,
         }
-    else:
+    elif target == "ngrok":
+        origin = getpass("ngrok HTTPS domain from your dashboard: ").strip().rstrip("/")
+        if not origin.startswith("https://"):
+            origin = "https://" + origin
+        url = origin if origin.endswith("/mcp") else origin + "/mcp"
+        url = Settings.validate_endpoint(Settings.validate_url(url))
+        token = getpass("ngrok authtoken: ").strip()
+        if not token or token == "replace-locally":
+            raise ValueError("enter the ngrok authtoken locally")
+        values = {"MASON_PUBLIC_URL": url, "MASON_NGROK_AUTHTOKEN": token}
+    elif target == "telegram":
         api_id = getpass("Telegram API ID: ").strip()
         api_hash = getpass("Telegram API hash: ").strip()
         if not api_id.isdecimal() or int(api_id) <= 0 or not api_hash:
             raise ValueError("check the Telegram API credentials")
         values = {"MASON_TELEGRAM_API_ID": api_id, "MASON_TELEGRAM_API_HASH": api_hash}
+    else:
+        raise ValueError("choose github, telegram, or ngrok")
     for key, value in values.items():
         set_key(path, key, value)
     path.chmod(0o600)

@@ -10,19 +10,19 @@ from pathlib import Path
 
 from dotenv import set_key
 
-from mason.config import Settings
+from mason.config import NgrokSettings, Settings
 from mason.doctor import check_endpoint, doctor
 
 
-def find_cloudflared() -> str:
+def find_executable(name: str) -> str:
     """find the tunnel binary without downloading anything"""
-    executable = shutil.which("cloudflared")
+    executable = shutil.which(name)
     if not executable:
-        local = Path.home() / ".local/bin/cloudflared"
+        local = Path.home() / ".local/bin" / name
         if local.is_file() and os.access(local, os.X_OK):
             executable = str(local)
     if not executable:
-        raise ValueError("install cloudflared before running mason start")
+        raise ValueError(f"install {name} before running mason start")
     return executable
 
 
@@ -91,30 +91,54 @@ def save_url(public_url: str) -> None:
     path.chmod(0o600)
 
 
-async def start() -> None:
-    """run a temporary tunnel and server until interrupted"""
+async def start(tunnel_kind: str = "cloudflare") -> None:
+    """run a selected tunnel and server until interrupted"""
     settings = await asyncio.to_thread(load_settings)
-    executable = find_cloudflared()
-    processes = []
-    tasks = []
-    loop = asyncio.get_running_loop()
-    loop.add_signal_handler(signal.SIGTERM, asyncio.current_task().cancel)
-    try:
-        print("starting the temporary HTTPS tunnel", flush=True)
-        tunnel = await asyncio.create_subprocess_exec(
-            executable,
+    if tunnel_kind == "ngrok":
+        token = NgrokSettings().ngrok_authtoken.get_secret_value()
+        if token == "replace-locally":
+            raise ValueError("run mason configure ngrok locally")
+        command = [
+            find_executable("ngrok"),
+            "http",
+            f"http://127.0.0.1:{settings.port}",
+            "--url",
+            settings.origin,
+            "--inspect=false",
+            "--log=stdout",
+            "--log-format=json",
+        ]
+        tunnel_environment = dict(os.environ, NGROK_AUTHTOKEN=token)
+    elif tunnel_kind == "cloudflare":
+        command = [
+            find_executable("cloudflared"),
             "tunnel",
             "--url",
             f"http://127.0.0.1:{settings.port}",
             "--protocol",
             "http2",
             "--no-autoupdate",
+        ]
+        tunnel_environment = None
+    else:
+        raise ValueError("choose cloudflare or ngrok")
+    processes = []
+    tasks = []
+    loop = asyncio.get_running_loop()
+    loop.add_signal_handler(signal.SIGTERM, asyncio.current_task().cancel)
+    try:
+        print(f"starting the {tunnel_kind} HTTPS tunnel", flush=True)
+        tunnel = await asyncio.create_subprocess_exec(
+            *command,
+            env=tunnel_environment,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             start_new_session=True,
         )
         processes.append(tunnel)
         address = asyncio.get_running_loop().create_future()
+        if tunnel_kind == "ngrok":
+            address.set_result(settings.origin)
         reader = asyncio.create_task(read_tunnel(tunnel, address))
         tasks.append(reader)
         origin = await asyncio.wait_for(address, timeout=45)

@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 import pytest
 from dotenv import dotenv_values
 
-from mason.config import Settings
+from mason.config import NgrokSettings, Settings
 from mason.doctor import fetch_json
 from mason.launch import check_port, read_tunnel, save_url, start, stop_process
 
@@ -50,7 +50,7 @@ def launch_setup(tmp_path, monkeypatch, auth_setup):
     monkeypatch.setattr("mason.launch.Settings", lambda: settings)
     monkeypatch.setattr("mason.launch.doctor", lambda: True)
     monkeypatch.setattr("mason.launch.check_port", lambda port: None)
-    monkeypatch.setattr("mason.launch.find_cloudflared", lambda: "/fictional/cloudflared")
+    monkeypatch.setattr("mason.launch.find_executable", lambda name: "/fictional/" + name)
     return path, settings
 
 
@@ -253,3 +253,58 @@ async def test_real_demo_server_starts_and_stops_with_the_launcher(
             await task
     assert len(processes) == 2
     assert all(process.returncode is not None for process in processes)
+
+
+async def test_ngrok_uses_the_configured_address_without_logging_tokens(
+    launch_setup, monkeypatch, capsys
+):
+    path, _ = launch_setup
+    tunnel = Process(b"fictional-private-token in discarded agent logs\n")
+    server = Process()
+    spawn = AsyncMock(side_effect=[tunnel, server])
+    monkeypatch.setattr("mason.launch.asyncio.create_subprocess_exec", spawn)
+    monkeypatch.setattr(
+        "mason.launch.NgrokSettings",
+        lambda: NgrokSettings(_env_file=None, ngrok_authtoken="fictional-private-token"),
+    )
+    ready = AsyncMock()
+    monkeypatch.setattr("mason.launch.wait_ready", ready)
+    started = asyncio.Event()
+    output_print = print
+
+    def print_and_signal(*args, **kwargs):
+        output_print(*args, **kwargs)
+        if args[0].startswith("server ready"):
+            started.set()
+
+    monkeypatch.setattr("mason.launch.print", print_and_signal, raising=False)
+    task = asyncio.create_task(start("ngrok"))
+    try:
+        async with asyncio.timeout(2):
+            await started.wait()
+    finally:
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    tunnel_call = spawn.call_args_list[0]
+    assert "fictional-private-token" not in str(tunnel_call.args)
+    assert tunnel_call.kwargs["env"]["NGROK_AUTHTOKEN"] == "fictional-private-token"
+    assert "--inspect=false" in tunnel_call.args
+    assert tunnel_call.args[tunnel_call.args.index("--url") + 1] == "https://old.test"
+    assert ready.call_args.args[0].public_url == "https://old.test/mcp"
+    assert dotenv_values(path)["MASON_PUBLIC_URL"] == "https://old.test/mcp"
+    assert tunnel.terminated and server.terminated
+    output = capsys.readouterr().out
+    assert "fictional-private-token" not in output
+    assert "update the GitHub callback" not in output
+
+
+async def test_missing_ngrok_token_does_not_spawn_a_tunnel(launch_setup, monkeypatch):
+    from pydantic import ValidationError
+
+    monkeypatch.delenv("MASON_NGROK_AUTHTOKEN", raising=False)
+    spawn = AsyncMock()
+    monkeypatch.setattr("mason.launch.asyncio.create_subprocess_exec", spawn)
+    with pytest.raises(ValidationError):
+        await start("ngrok")
+    spawn.assert_not_called()

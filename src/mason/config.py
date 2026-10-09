@@ -52,6 +52,14 @@ class Settings(BaseSettings):
         return value
 
 
+class NgrokSettings(BaseSettings):
+    """read the tunnel credential only when ngrok is selected"""
+
+    model_config = SettingsConfigDict(env_prefix="MASON_", env_file=".env", extra="ignore")
+
+    ngrok_authtoken: SecretStr = Field(min_length=1)
+
+
 class TelegramSettings(BaseSettings):
     """keep Telegram credentials separate from server settings"""
 
