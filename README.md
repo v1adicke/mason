@@ -17,13 +17,16 @@ identity-provider account.
 | Tool | Use it for |
 | --- | --- |
 | `list_chats` | Finding a chat by its title |
-| `search_messages` | Keyword search with optional chat and date filters |
+| `search_messages` | Keyword search with optional chat, date, and sender filters |
 | `get_message_context` | Reading a result and the messages around it |
 | `get_recent_messages` | Catching up on a few recent messages |
 
 All remote reads stay inside an explicit chat allowlist. Results include the chat, author,
 date, message ID, and a source link when Telegram supports one. If there is no link, Mason
 returns the identifiers for manual lookup. It does not make one up.
+
+To search by sender, use the `sender_id` from a previous message result. The filter works with
+dates and pagination, and it stays inside the same allowed chats.
 
 ## try it
 
@@ -78,4 +81,5 @@ search limits, and `telegram/client.py` talks to Telegram. More on the tradeoffs
 [the architecture notes](docs/architecture.md).
 
 Next up: make the connection easier to keep running, see where keyword search falls short,
-then consider a local text index.
+then consider a local text index. Discord is the next module candidate; see
+[the roadmap](docs/roadmap.md).

@@ -132,6 +132,20 @@ date, text, and context against Telegram. Stop the server before repeating local
 Mason labels the owner's self-chat as `Saved Messages (Избранное)`, so title search can find
 it by either name instead of the owner's profile name.
 
+## search filters
+
+`search_messages` accepts an optional `sender_id` from a returned message. For example, the
+fictional demo sender has ID `1`:
+
+```json
+{"query": "maths", "sender_id": 1, "limit": 5}
+```
+
+For Telegram, use the actual `sender_id` returned by search, recent messages, or context.
+It identifies the sender of the message; forwarded content may name a different original
+author. Name lookup is not implemented yet. The filter combines with `chat_id`, `date_from`,
+and `date_to`. Keep the sender and other filters the same when using a `next_cursor`.
+
 ## restarting and revoking access
 
 After the first setup, start both processes from one terminal:
