@@ -94,6 +94,8 @@ The layout is small: `server.py` exposes the tools, `telegram/service.py` checks
 search limits, and `telegram/client.py` talks to Telegram. More on the tradeoffs in
 [the architecture notes](docs/architecture.md).
 
-Next up: try the search on everyday questions, see where keyword search falls short,
-then consider a local text index. Discord is the next module candidate; see
-[the roadmap](docs/roadmap.md).
+Next up: a website I can use from my phone, with shared searches and computer control.
+Mail.ru and Discord are the next read-only data sources; forwarded Outlook mail comes through
+the Mail.ru inbox. These are planned features; Telegram is what works today.
+See [the roadmap](docs/roadmap.md) and
+[the web app plan](docs/web-app-plan.md).

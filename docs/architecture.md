@@ -80,5 +80,19 @@ links; private links still require membership. Demo data has no real source link
 Telegram service events can have empty text and `kind=service`; they still count as real
 neighbors and do not prematurely end a page.
 
-SQLite/FTS5, embeddings, photo search, voice, and other modules can come later. They do not
-need scaffolding in this version.
+## planned web app and new services
+
+The next version adds a phone-friendly website as a second interface to the same service
+methods. Browser sessions have separate authorization from MCP. Small shared web state can
+live in SQLite without introducing a message archive or a full-text index.
+
+Mail.ru gets a read-only IMAP adapter so the website and MCP can use the same mail operations.
+Forwarded Outlook mail is read from that inbox, without a direct Outlook connection.
+Discord starts with an existing-integration check, then a bot adapter only
+if needed. Each provider has its own explicit access policy.
+
+Computer control uses a separately authorized web session and a local desktop process. It is
+outside the five current read-only MCP tools. Details, completion checks, and the order of work
+are in [the web app plan](web-app-plan.md). These parts are not implemented yet.
+
+SQLite/FTS5 search, embeddings, photo search, voice, and autonomous actions can come later.
