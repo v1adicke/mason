@@ -146,6 +146,24 @@ It identifies the sender of the message; forwarded content may name a different 
 author. Name lookup is not implemented yet. The filter combines with `chat_id`, `date_from`,
 and `date_to`. Keep the sender and other filters the same when using a `next_cursor`.
 
+Use `find_documents` for attachments. Its optional `query` uses Telegram's native text search;
+`file_name` checks a case-insensitive substring of the displayed filename. Leave `query` out
+when looking only by filename. Both filters can be combined with chat, date, and sender filters.
+
+The demo has a fictional attachment called `discrete_maths.pdf`:
+
+```json
+{"file_name": ".pdf", "limit": 5}
+```
+
+Omit both filters to list recent documents. Results use the same message format, with
+`file_name`, `mime_type`, and `file_size` in bytes when Telegram supplies them. No document is
+downloaded, and captions or filenames do not tell Mason what is inside the file.
+
+Filename matching checks at most `limit + 1` document messages per allowed chat on each call.
+A page can be empty and still have a `next_cursor`; follow it with the same filters. This
+keeps each request bounded while allowing older documents to be found without a local index.
+
 ## restarting and revoking access
 
 After the first setup, start both processes from one terminal:

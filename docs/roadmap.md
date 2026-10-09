@@ -10,7 +10,7 @@ Telegram is the first working module. Keep changes small and useful before addin
 - [x] Start the server and a temporary tunnel together
 - [x] Filter search by sender
 - [ ] Keep the public address stable so reconnecting is less work
-- [ ] Improve document lookup using filenames and captions, without downloading files
+- [x] Find documents using filenames and captions, without downloading files
 
 A local SQLite/FTS5 index can come after trying the keyword search in practice. Add embeddings
 only if exact search and a text index still miss useful results. Photo search and voice can wait.

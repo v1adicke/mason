@@ -5,8 +5,8 @@ My little AI toolkit. Starting with Telegram search over MCP.
 I want to ask ChatGPT where something was discussed, get the actual messages, and open the
 source. Mason handles the Telegram side; ChatGPT handles the conversation.
 
-The first version is read-only: keyword search, recent messages, and a bit of context around a
-result. Semantic search and photos can wait until the basics work.
+The first version is read-only: keyword search, document lookup, recent messages, and a bit of
+context around a result. Semantic search and photos can wait until the basics work.
 
 Built with Python 3.12+, Telethon, and the official MCP SDK. One app, no extra search database yet.
 FastMCP's OAuth bridge handles GitHub sign-in, so the first trial does not need a separate
@@ -18,6 +18,7 @@ identity-provider account.
 | --- | --- |
 | `list_chats` | Finding a chat by its title |
 | `search_messages` | Keyword search with optional chat, date, and sender filters |
+| `find_documents` | Finding attachments by caption keywords or part of their filename |
 | `get_message_context` | Reading a result and the messages around it |
 | `get_recent_messages` | Catching up on a few recent messages |
 
@@ -27,6 +28,10 @@ returns the identifiers for manual lookup. It does not make one up.
 
 To search by sender, use the `sender_id` from a previous message result. The filter works with
 dates and pagination, and it stays inside the same allowed chats.
+
+Document lookup returns the filename, MIME type, size in bytes, and the original message.
+It reads metadata and captions; file contents stay in Telegram. An empty document page can
+still have a `next_cursor`, so keep paging before deciding that nothing matched.
 
 ## try it
 

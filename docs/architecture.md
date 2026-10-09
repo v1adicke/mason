@@ -33,7 +33,7 @@ rejected. There is no public signup in Mason and no login-code tool.
 
 ## the boundaries that matter
 
-- All four tools only read. No generic RPC, shell command, send, delete, download, or mark-read tool
+- All five tools only read. No generic RPC, shell command, send, delete, download, or mark-read tool
 - An explicit allowlist of 1–20 chats applies to every Telegram tool
 - Searching without a chat checks each allowed chat separately, never Telegram's account-wide search
 - At most 50 results per page and 10 neighbors per side of a context request
@@ -62,6 +62,12 @@ database also caches peer metadata; treat the whole file as sensitive.
 Search uses Telegram's native keyword search. It is not semantic search. Results are sorted
 newest first. `date_from` is inclusive and `date_to` is exclusive; both need a timezone offset.
 Returned dates use the configured timezone.
+
+Document lookup uses Telegram's document filter, then checks the displayed filename locally
+when `file_name` is supplied. Each call reads at most `limit + 1` document messages per chat.
+Offsets advance over scanned documents that did not match, while preserving any matches that
+did not fit on the returned page. Empty pages can have a continuation cursor. MIME type and
+size come from message metadata, with no download or persistent file index.
 
 Across chats, each page merges bounded per-chat results. The cursor remembers the last
 returned message in each chat. Telegram is live: deletion, editing, and new messages can affect
