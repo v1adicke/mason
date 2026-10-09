@@ -12,6 +12,7 @@ Telegram is the first working module. Keep changes small and useful before addin
 - [x] Support an ngrok development domain in the launcher
 - [x] Move the live connection to a stable address and test it from ChatGPT
 - [x] Find documents using filenames and captions, without downloading files
+- [x] Read a chosen date range without requiring search keywords
 
 A local SQLite/FTS5 index can come after trying the keyword search in practice. Add embeddings
 only if exact search and a text index still miss useful results. Photo search and voice can wait.

@@ -134,6 +134,24 @@ it by either name instead of the owner's profile name.
 
 ## search filters
 
+For a request like "what was discussed yesterday?", use `get_recent_messages` with a chat ID
+from `list_chats` and optional `date_from` and `date_to`. No keyword is needed. For example,
+this reads the fictional demo chat for January 2 in a UTC+02:00 timezone:
+
+```json
+{
+  "chat_id": -1001234567890,
+  "date_from": "2026-01-02T00:00:00+02:00",
+  "date_to": "2026-01-03T00:00:00+02:00",
+  "limit": 20
+}
+```
+
+The start is inclusive and the end is exclusive. Use the offset for the actual requested dates;
+it can change with daylight saving time. Results stay newest first and use the configured
+timezone. Continue with `next_cursor` and the same dates if the period has more messages.
+The page is a bounded sample until paging is finished, so don't call it a complete recap yet.
+
 `search_messages` accepts an optional `sender_id` from a returned message. For example, the
 fictional demo sender has ID `1`:
 

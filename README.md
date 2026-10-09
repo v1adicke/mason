@@ -20,7 +20,7 @@ identity-provider account.
 | `search_messages` | Keyword search with optional chat, date, and sender filters |
 | `find_documents` | Finding attachments by caption keywords or part of their filename |
 | `get_message_context` | Reading a result and the messages around it |
-| `get_recent_messages` | Catching up on a few recent messages |
+| `get_recent_messages` | Catching up on recent messages or reading a chosen date range |
 
 All remote reads stay inside an explicit chat allowlist. Results include the chat, author,
 date, message ID, and a source link when Telegram supports one. If there is no link, Mason
@@ -28,6 +28,11 @@ returns the identifiers for manual lookup. It does not make one up.
 
 To search by sender, use the `sender_id` from a previous message result. The filter works with
 dates and pagination, and it stays inside the same allowed chats.
+
+To read a day or a week without searching for a word, use `get_recent_messages` with
+`date_from` and `date_to`. Dates need a timezone offset. The start is included and the end
+is excluded, so a full day runs from midnight to the next midnight. Keep the same dates
+when following `next_cursor`.
 
 Document lookup returns the filename, MIME type, size in bytes, and the original message.
 It reads metadata and captions; file contents stay in Telegram. An empty document page can
@@ -89,6 +94,6 @@ The layout is small: `server.py` exposes the tools, `telegram/service.py` checks
 search limits, and `telegram/client.py` talks to Telegram. More on the tradeoffs in
 [the architecture notes](docs/architecture.md).
 
-Next up: make the connection easier to keep running, see where keyword search falls short,
+Next up: try the search on everyday questions, see where keyword search falls short,
 then consider a local text index. Discord is the next module candidate; see
 [the roadmap](docs/roadmap.md).
