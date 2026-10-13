@@ -20,6 +20,7 @@ class Message(BaseModel):
     date: datetime
     text: str
     text_truncated: bool = False
+    pinned: bool = False
     url: str | None = None
     reply_to_message_id: int | None = None
     edited_at: datetime | None = None

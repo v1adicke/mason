@@ -84,6 +84,8 @@ def create_server(
             f"The configured timezone is {settings.timezone}. "
             "Use get_message to read a referenced message or continue shortened text with "
             "next_text_offset. Chunks are live reads; if edited_at changes, start again at zero. "
+            "Use get_pinned_messages for current pins; they are sorted by message date, "
+            "not the time they were pinned. "
             + (
                 "Demo mode: all messages are fictional test data."
                 if settings.mode == "demo"
@@ -149,6 +151,15 @@ def create_server(
                 query, chat_id, date_from, date_to, limit, cursor, sender_id, file_name
             )
         )
+
+    @server.tool(annotations=annotations)
+    async def get_pinned_messages(
+        chat_id: Annotated[int, Field(description="numeric chat id returned by list_chats")],
+        limit: Limit = 20,
+        cursor: Cursor | None = None,
+    ) -> MessagePage:
+        """read current pinned messages from one allowed chat with pagination"""
+        return await safe_read(service.get_pinned_messages(chat_id, limit, cursor))
 
     @server.tool(annotations=annotations)
     async def get_message(

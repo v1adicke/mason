@@ -45,6 +45,7 @@ def test_authenticated_http_search_and_context(http_client):
         "search_messages",
         "find_documents",
         "get_message",
+        "get_pinned_messages",
         "get_message_context",
         "get_recent_messages",
     }
@@ -101,6 +102,32 @@ def test_authenticated_http_document_lookup(http_client):
     assert files[0]["file_name"] == "discrete_maths.pdf"
     assert files[0]["mime_type"] == "application/pdf"
     assert files[0]["file_size"] == 1024
+
+
+def test_authenticated_http_pinned_messages(http_client):
+    result = rpc(
+        http_client,
+        "tools/call",
+        {
+            "name": "get_pinned_messages",
+            "arguments": {"chat_id": DEMO_CHAT_ID, "limit": 5},
+        },
+    ).json()["result"]
+    assert not result.get("isError")
+    messages = result["structuredContent"]["messages"]
+    assert [message["message_id"] for message in messages] == [2]
+    assert messages[0]["pinned"]
+    assert result["structuredContent"]["next_cursor"] is None
+    denied = rpc(
+        http_client,
+        "tools/call",
+        {
+            "name": "get_pinned_messages",
+            "arguments": {"chat_id": 999},
+        },
+    ).json()["result"]
+    assert denied["isError"]
+    assert "chat_not_allowed" in denied["content"][0]["text"]
 
 
 def test_authenticated_http_message_text_continuation(http_client):

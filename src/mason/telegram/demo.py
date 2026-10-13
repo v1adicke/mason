@@ -31,6 +31,7 @@ class DemoBackend:
         self.messages[1].file_name = "discrete_maths.pdf"
         self.messages[1].mime_type = "application/pdf"
         self.messages[1].file_size = 1024
+        self.messages[1].pinned = True
 
     async def connect(self) -> None:
         pass
@@ -56,6 +57,7 @@ class DemoBackend:
         date_to: datetime | None = None,
         sender_id: int | None = None,
         documents_only: bool = False,
+        pinned_only: bool = False,
     ) -> list[Message]:
         return [
             message
@@ -65,6 +67,7 @@ class DemoBackend:
             and (query is None or query.casefold() in message.text.casefold())
             and (sender_id is None or message.sender_id == sender_id)
             and (not documents_only or message.media_type == "document")
+            and (not pinned_only or message.pinned)
         ][:limit]
 
     async def get_context(

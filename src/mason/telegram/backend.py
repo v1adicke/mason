@@ -25,6 +25,7 @@ class TelegramBackend(Protocol):
         date_to: datetime | None = None,
         sender_id: int | None = None,
         documents_only: bool = False,
+        pinned_only: bool = False,
     ) -> list[Message]: ...
 
     async def get_context(

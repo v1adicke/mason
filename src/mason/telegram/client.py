@@ -90,6 +90,7 @@ class TelethonBackend:
             sender_id=message.sender_id,
             date=message.date,
             text=message.message or "",
+            pinned=bool(getattr(message, "pinned", False)),
             url=message_url(chat, message.id),
             reply_to_message_id=message.reply_to_msg_id,
             edited_at=message.edit_date,
@@ -119,7 +120,15 @@ class TelethonBackend:
         date_to: datetime | None = None,
         sender_id: int | None = None,
         documents_only: bool = False,
+        pinned_only: bool = False,
     ) -> list[Message]:
+        if documents_only and pinned_only:
+            raise ValueError("choose one message filter")
+        filters = {}
+        if documents_only:
+            filters["filter"] = types.InputMessagesFilterDocument()
+        elif pinned_only:
+            filters["filter"] = types.InputMessagesFilterPinned()
         chat = await self.get_chat(chat_id)
         messages = []
         async for message in self.client.iter_messages(
@@ -129,7 +138,7 @@ class TelethonBackend:
             offset_id=before_id,
             offset_date=date_to,
             from_user=sender_id,
-            **({"filter": types.InputMessagesFilterDocument()} if documents_only else {}),
+            **filters,
         ):
             if isinstance(message, (types.Message, types.MessageService)):
                 messages.append(self._message(chat, message))

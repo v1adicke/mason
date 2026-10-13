@@ -162,6 +162,13 @@ class TelegramService:
     ) -> MessagePage:
         return await self._read(None, chat_id, date_from, date_to, limit, cursor)
 
+    async def get_pinned_messages(
+        self, chat_id: int, limit: int = 20, cursor: str | None = None
+    ) -> MessagePage:
+        """read current pinned messages from one allowed chat"""
+        self._check_chat(chat_id)
+        return await self._read(None, chat_id, None, None, limit, cursor, pinned_only=True)
+
     async def _read(
         self,
         query: str | None,
@@ -173,6 +180,7 @@ class TelegramService:
         sender_id: int | None = None,
         documents_only: bool = False,
         file_name: str | None = None,
+        pinned_only: bool = False,
     ) -> MessagePage:
         if not 1 <= limit <= 50:
             raise ServiceError("invalid_limit: choose between 1 and 50 messages")
@@ -187,7 +195,14 @@ class TelegramService:
             self._check_chat(chat_id)
         chat_ids = [chat_id] if chat_id is not None else self.allowed_chats
         key = self._key(
-            "messages", query, chat_ids, date_from, date_to, sender_id, documents_only, file_name
+            "pinned" if pinned_only else "messages",
+            query,
+            chat_ids,
+            date_from,
+            date_to,
+            sender_id,
+            documents_only,
+            file_name,
         )
         offsets = self._decode_cursor(cursor, key, {})
         if not isinstance(offsets, dict) or any(
@@ -208,6 +223,7 @@ class TelegramService:
                     date_to=date_to,
                     sender_id=sender_id,
                     documents_only=documents_only,
+                    pinned_only=pinned_only,
                 )
                 if documents_only and messages:
                     scanned_offsets[str(current_chat)] = messages[-1].message_id
@@ -222,6 +238,8 @@ class TelegramService:
                         raise ServiceError("invalid_source: unexpected sender in the result")
                     if documents_only and message.media_type != "document":
                         raise ServiceError("invalid_source: expected a document message")
+                    if pinned_only and not message.pinned:
+                        raise ServiceError("invalid_source: expected a pinned message")
                     if date_from and message.date < date_from:
                         continue
                     if date_to and message.date >= date_to:
