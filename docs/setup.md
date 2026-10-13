@@ -192,6 +192,24 @@ select that group explicitly, then use a root ID from that group. Mason does not
 follow the channel-to-discussion-group mapping automatically. Thread pages are live reads;
 deletion or editing can change later pages.
 
+Use `get_unread_messages` to catch up without marking a chat as read:
+
+```json
+{"chat_id": -1001234567890, "limit": 10}
+```
+
+The demo has read messages through ID `2`, so this returns incoming messages `4` and `3`.
+The response includes `read_inbox_max_id`, Telegram's live `unread_count`, and the separate
+manual `unread_mark` badge. A manually marked chat can have zero unread messages; Mason does
+not turn its whole history into unread results or clear that badge.
+
+Continue with `next_cursor` and the same chat. Outgoing messages are skipped within a bounded
+scan, so an empty page can still have a cursor. Reading in another Telegram client changes
+the inbox marker and invalidates the old cursor; start again without it. New messages can
+change the count while paging, and the count is not an exact size of the returned result set.
+Forum and monoforum inboxes return `unsupported_unread` until per-topic markers are supported.
+All reads keep the same chat allowlist and text limits.
+
 For a request like "what was discussed yesterday?", use `get_recent_messages` with a chat ID
 from `list_chats` and optional `date_from` and `date_to`. No keyword is needed. For example,
 this reads the fictional demo chat for January 2 in a UTC+02:00 timezone:
@@ -308,6 +326,7 @@ The [stable URL guide](stable-url.md) covers the optional ngrok account domain a
 - `telegram_unavailable`: check the session, network, and chat access locally
 - `invalid_cursor`: restart the search after changing its filters or allowed chats
 - `unsupported_thread`: use parent-chain navigation, or select an allowed supergroup
+- `unsupported_unread`: use normal history reads for topic-based chats until topic markers are supported
 
 Do not disable authentication to troubleshoot a public endpoint. Keep using demo data until
 the connection works. Secret chats, attachment downloads, PDF content search, image recognition,

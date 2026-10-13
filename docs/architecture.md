@@ -33,7 +33,7 @@ rejected. There is no public signup in Mason and no login-code tool.
 
 ## the boundaries that matter
 
-- All ten tools only read. No generic RPC, shell command, send, delete, download, or mark-read tool
+- All eleven tools only read. No generic RPC, shell command, send, delete, download, or mark-read tool
 - An explicit allowlist of 1–20 chats applies to every Telegram tool
 - Searching without a chat checks each allowed chat separately, never Telegram's account-wide search
 - At most 50 results per page and 10 neighbors per side of a context request
@@ -118,6 +118,16 @@ to the chat and root ID. Nested replies stay in the same
 [Telegram thread](https://core.telegram.org/api/threads). Results are ordered by message ID,
 newest first. No thread is marked as read, and no private-chat history scan is used to guess
 which messages might be replies.
+
+Unread reads fetch [one dialog](https://core.telegram.org/method/messages.getPeerDialogs),
+check its peer, and use `read_inbox_max_id` as an exclusive lower message-ID bound. Each page
+scans at most `limit + 1` messages in that chat and excludes outgoing messages. Cursors bind
+the chat and read marker. Offsets advance over outgoing messages without skipping incoming
+ones, so an empty page can still have a continuation. A changed read marker invalidates the
+cursor. Telegram's unread count is live metadata, not an exact result count or a snapshot.
+The separate `unread_mark` badge is reported without treating already-read messages as unread.
+Forums and monoforums are refused until topic-specific read markers are supported. No
+`readHistory`, `readDiscussion`, acknowledgement, or manual unread-mark change is sent.
 
 ## planned web app and new services
 

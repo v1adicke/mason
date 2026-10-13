@@ -63,6 +63,8 @@ folders still need to be configured separately; planning does not grant access t
 - [x] Read pinned messages with bounded pagination
 - [x] Find photos, videos, and voice/audio messages by metadata and caption
 - [x] Follow parent replies and read supergroup threads separately from neighboring context
+- [x] Read incoming unread messages without changing Telegram read status
+- [ ] Support topic-specific unread markers in forum chats
 - [ ] Add media-content reading only with explicit limits and a reviewed access design
 
 A local SQLite/FTS5 index can come after trying the keyword search in practice. Add embeddings

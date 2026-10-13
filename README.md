@@ -26,6 +26,7 @@ identity-provider account.
 | `get_pinned_messages` | Reading the current pins in one allowed chat |
 | `get_message_context` | Reading a result and the messages around it |
 | `get_recent_messages` | Catching up on recent messages or reading a chosen date range |
+| `get_unread_messages` | Reading incoming unread messages while keeping them unread |
 
 All remote reads stay inside an explicit chat allowlist. Results include the chat, author,
 date, message ID, and a source link when Telegram supports one. If there is no link, Mason
@@ -57,6 +58,11 @@ To read a day or a week without searching for a word, use `get_recent_messages` 
 `date_from` and `date_to`. Dates need a timezone offset. The start is included and the end
 is excluded, so a full day runs from midnight to the next midnight. Keep the same dates
 when following `next_cursor`.
+
+`get_unread_messages` uses Telegram's current inbox read marker and leaves read status alone.
+It skips outgoing messages. An empty page can still have a cursor, so keep paging. If I read
+the chat in another client, the old cursor becomes invalid and I need to start again.
+Forum and other topic-based inboxes need their own read markers and are not supported yet.
 
 Document lookup returns the filename, MIME type, size in bytes, and the original message.
 It reads metadata and captions; file contents stay in Telegram. An empty document page can
