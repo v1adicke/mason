@@ -10,7 +10,15 @@ from zoneinfo import ZoneInfo
 from telethon.errors import FloodWaitError, RPCError
 
 from mason.telegram.backend import TelegramBackend
-from mason.telegram.models import ChatPage, Message, MessageContext, MessagePage, MessageRead
+from mason.telegram.models import (
+    DOCUMENT_TYPES,
+    ChatPage,
+    MediaType,
+    Message,
+    MessageContext,
+    MessagePage,
+    MessageRead,
+)
 
 
 class ServiceError(Exception):
@@ -162,6 +170,38 @@ class TelegramService:
     ) -> MessagePage:
         return await self._read(None, chat_id, date_from, date_to, limit, cursor)
 
+    async def find_media(
+        self,
+        media_type: MediaType,
+        query: str | None = None,
+        chat_id: int | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        limit: int = 20,
+        cursor: str | None = None,
+        sender_id: int | None = None,
+        file_name: str | None = None,
+    ) -> MessagePage:
+        """find attached media by type and caption without downloading files"""
+        if media_type not in ("photo", "video", "voice", "audio"):
+            raise ServiceError("invalid_media_type: choose photo, video, voice, or audio")
+        query = query.strip() if query is not None else None
+        file_name = file_name.strip() if file_name is not None else None
+        for name, value in (("query", query), ("file_name", file_name)):
+            if value is not None and (not value or len(value) > 256):
+                raise ServiceError(f"invalid_{name}: use between 1 and 256 characters")
+        return await self._read(
+            query,
+            chat_id,
+            date_from,
+            date_to,
+            limit,
+            cursor,
+            sender_id,
+            file_name=file_name,
+            media_type=media_type,
+        )
+
     async def get_pinned_messages(
         self, chat_id: int, limit: int = 20, cursor: str | None = None
     ) -> MessagePage:
@@ -181,6 +221,7 @@ class TelegramService:
         documents_only: bool = False,
         file_name: str | None = None,
         pinned_only: bool = False,
+        media_type: MediaType | None = None,
     ) -> MessagePage:
         if not 1 <= limit <= 50:
             raise ServiceError("invalid_limit: choose between 1 and 50 messages")
@@ -194,8 +235,11 @@ class TelegramService:
         if chat_id is not None:
             self._check_chat(chat_id)
         chat_ids = [chat_id] if chat_id is not None else self.allowed_chats
+        kind = "pinned" if pinned_only else "messages"
+        if media_type:
+            kind = "media:" + media_type
         key = self._key(
-            "pinned" if pinned_only else "messages",
+            kind,
             query,
             chat_ids,
             date_from,
@@ -212,7 +256,8 @@ class TelegramService:
             raise ServiceError("invalid_cursor: expected message offsets")
         matches = []
         scanned_offsets = {}
-        more_documents = False
+        filtered_scan = documents_only or media_type is not None
+        more_filtered = False
         async with self._operation():
             for current_chat in chat_ids:
                 messages = await self.backend.read_messages(
@@ -224,20 +269,23 @@ class TelegramService:
                     sender_id=sender_id,
                     documents_only=documents_only,
                     pinned_only=pinned_only,
+                    media_type=media_type,
                 )
-                if documents_only and messages:
+                if filtered_scan and messages:
                     scanned_offsets[str(current_chat)] = messages[-1].message_id
                     if len(messages) == limit + 1 and (
                         date_from is None or messages[-1].date >= date_from
                     ):
-                        more_documents = True
+                        more_filtered = True
                 for message in messages:
                     if message.chat.id != current_chat:
                         raise ServiceError("invalid_source: unexpected chat in the result")
                     if sender_id is not None and message.sender_id != sender_id:
                         raise ServiceError("invalid_source: unexpected sender in the result")
-                    if documents_only and message.media_type != "document":
+                    if documents_only and message.media_type not in DOCUMENT_TYPES:
                         raise ServiceError("invalid_source: expected a document message")
+                    if media_type is not None and message.media_type != media_type:
+                        raise ServiceError("invalid_source: unexpected media type in the result")
                     if pinned_only and not message.pinned:
                         raise ServiceError("invalid_source: expected a pinned message")
                     if date_from and message.date < date_from:
@@ -256,7 +304,7 @@ class TelegramService:
         selected = matches[:limit]
         for message in selected:
             offsets[str(message.chat.id)] = message.message_id
-        if documents_only:
+        if filtered_scan:
             pending_chats = {str(message.chat.id) for message in matches[limit:]}
             offsets.update(
                 (chat, offset)
@@ -266,7 +314,7 @@ class TelegramService:
         return MessagePage(
             messages=self._format_messages(selected),
             next_cursor=self._encode_cursor(key, offsets)
-            if len(matches) > limit or more_documents
+            if len(matches) > limit or more_filtered
             else None,
             searched_chats=chat_ids,
             timezone=str(self.timezone),

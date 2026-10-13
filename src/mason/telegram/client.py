@@ -7,7 +7,28 @@ from telethon.tl import types
 
 from mason.config import TelegramSettings
 from mason.telegram.links import message_url
-from mason.telegram.models import Chat, Message
+from mason.telegram.models import Chat, MediaType, Message
+
+
+def message_media_type(message: types.Message | types.MessageService) -> str | None:
+    """identify attached media without counting link previews"""
+    if isinstance(message.media, types.MessageMediaPhoto) and message.photo:
+        return "photo"
+    if not isinstance(message.media, types.MessageMediaDocument) or not message.document:
+        return None
+    if message.voice:
+        return "voice"
+    if message.audio:
+        return "audio"
+    if message.video_note:
+        return "video_note"
+    if message.sticker:
+        return "sticker"
+    if message.gif:
+        return "animation"
+    if message.video:
+        return "video"
+    return "document"
 
 
 def prepare_session(path: Path, *, create: bool = False) -> None:
@@ -77,11 +98,8 @@ class TelethonBackend:
         )
 
     def _message(self, chat: Chat, message: types.Message | types.MessageService) -> Message:
-        media_type = None
-        if message.photo:
-            media_type = "photo"
-        elif message.document:
-            media_type = "document"
+        media_type = message_media_type(message)
+        file = message.file if media_type else None
         return Message(
             chat=chat,
             message_id=message.id,
@@ -95,11 +113,12 @@ class TelethonBackend:
             reply_to_message_id=message.reply_to_msg_id,
             edited_at=message.edit_date,
             media_type=media_type,
-            file_name=message.file.name[:200] if message.file and message.file.name else None,
-            mime_type=message.file.mime_type[:100]
-            if message.file and message.file.mime_type
-            else None,
-            file_size=message.file.size if message.file else None,
+            file_name=file.name[:200] if file and file.name else None,
+            mime_type=file.mime_type[:100] if file and file.mime_type else None,
+            file_size=file.size if file else None,
+            media_width=file.width if file else None,
+            media_height=file.height if file else None,
+            media_duration=file.duration if file else None,
         )
 
     async def get_message(self, chat_id: int, message_id: int) -> Message | None:
@@ -121,14 +140,23 @@ class TelethonBackend:
         sender_id: int | None = None,
         documents_only: bool = False,
         pinned_only: bool = False,
+        media_type: MediaType | None = None,
     ) -> list[Message]:
-        if documents_only and pinned_only:
+        if sum((documents_only, pinned_only, media_type is not None)) > 1:
             raise ValueError("choose one message filter")
         filters = {}
         if documents_only:
             filters["filter"] = types.InputMessagesFilterDocument()
         elif pinned_only:
             filters["filter"] = types.InputMessagesFilterPinned()
+        elif media_type is not None:
+            media_filters = {
+                "photo": types.InputMessagesFilterPhotos,
+                "video": types.InputMessagesFilterVideo,
+                "voice": types.InputMessagesFilterVoice,
+                "audio": types.InputMessagesFilterMusic,
+            }
+            filters["filter"] = media_filters[media_type]()
         chat = await self.get_chat(chat_id)
         messages = []
         async for message in self.client.iter_messages(

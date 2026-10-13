@@ -20,7 +20,7 @@ from mason.config import Settings, TelegramSettings
 from mason.http import RequestLimitMiddleware
 from mason.telegram.client import TelethonBackend
 from mason.telegram.demo import DEMO_CHAT_ID, DemoBackend
-from mason.telegram.models import ChatPage, MessageContext, MessagePage, MessageRead
+from mason.telegram.models import ChatPage, MediaType, MessageContext, MessagePage, MessageRead
 from mason.telegram.service import ServiceError, TelegramService
 
 logger = logging.getLogger(__name__)
@@ -78,8 +78,9 @@ def create_server(
             "author, date, and message ID; use a URL only when one is returned. A missing URL "
             "means manual lookup. Read context before drawing conclusions. Pagination covers "
             "live Telegram results, not a fixed snapshot. Follow next_cursor on empty document "
-            "pages before claiming no matches. Document results contain metadata and captions, "
-            "not file contents. Use get_recent_messages to read a date range without keywords. "
+            "or media pages before claiming no matches. These results contain metadata and "
+            "captions, not file contents. Media search does not recognize images or transcribe "
+            "audio. Use get_recent_messages to read a date range without keywords. "
             "Date bounds need timezone offsets; date_from is inclusive and date_to is exclusive. "
             f"The configured timezone is {settings.timezone}. "
             "Use get_message to read a referenced message or continue shortened text with "
@@ -149,6 +150,29 @@ def create_server(
         return await safe_read(
             service.find_documents(
                 query, chat_id, date_from, date_to, limit, cursor, sender_id, file_name
+            )
+        )
+
+    @server.tool(annotations=annotations)
+    async def find_media(
+        media_type: MediaType,
+        query: Annotated[Query | None, Field(description="keywords in the message caption")] = None,
+        chat_id: int | None = None,
+        date_from: Annotated[AwareDatetime | None, Field(description="inclusive start")] = None,
+        date_to: Annotated[AwareDatetime | None, Field(description="exclusive end")] = None,
+        limit: Limit = 20,
+        cursor: Cursor | None = None,
+        sender_id: Annotated[
+            int | None, Field(description="numeric sender_id from a returned message")
+        ] = None,
+        file_name: Annotated[
+            Query | None, Field(description="case-insensitive substring of the displayed filename")
+        ] = None,
+    ) -> MessagePage:
+        """find photos, videos, voice notes, or audio by caption and metadata"""
+        return await safe_read(
+            service.find_media(
+                media_type, query, chat_id, date_from, date_to, limit, cursor, sender_id, file_name
             )
         )
 

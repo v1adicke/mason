@@ -44,6 +44,7 @@ def test_authenticated_http_search_and_context(http_client):
         "list_chats",
         "search_messages",
         "find_documents",
+        "find_media",
         "get_message",
         "get_pinned_messages",
         "get_message_context",
@@ -128,6 +129,62 @@ def test_authenticated_http_pinned_messages(http_client):
     ).json()["result"]
     assert denied["isError"]
     assert "chat_not_allowed" in denied["content"][0]["text"]
+
+
+def test_authenticated_http_media_search(http_client):
+    tool = next(
+        tool
+        for tool in rpc(http_client, "tools/list").json()["result"]["tools"]
+        if tool["name"] == "find_media"
+    )
+    assert tool["inputSchema"]["properties"]["media_type"]["enum"] == [
+        "photo",
+        "video",
+        "voice",
+        "audio",
+    ]
+    assert tool["inputSchema"]["required"] == ["media_type"]
+    for arguments, error in (
+        ({"media_type": "photo"}, None),
+        ({"media_type": "photo", "chat_id": 999}, "chat_not_allowed"),
+        ({"media_type": "document"}, "media_type"),
+    ):
+        result = rpc(
+            http_client, "tools/call", {"name": "find_media", "arguments": arguments}
+        ).json()["result"]
+        if error:
+            assert result["isError"]
+            assert error in result["content"][0]["text"]
+        else:
+            assert not result.get("isError")
+            assert result["structuredContent"]["messages"] == []
+
+
+def test_authenticated_http_media_metadata(auth_setup):
+    from mason.telegram.demo import DemoBackend
+    from mason.telegram.service import TelegramService
+
+    verifier, key, claims = auth_setup
+    backend = DemoBackend()
+    for message, kind in zip(backend.messages, ["photo", "video", "voice", "audio"], strict=True):
+        message.media_type = kind
+        message.media_duration = 12 if kind != "photo" else None
+    service = TelegramService(backend, [DEMO_CHAT_ID], "UTC")
+    app = create_app(verifier.settings, verifier=verifier, service=service)
+    headers = {
+        "Authorization": f"Bearer {jwt.encode(claims, key, algorithm='HS256')}",
+        "Accept": "application/json, text/event-stream",
+    }
+    with TestClient(app, base_url="http://127.0.0.1:8000", headers=headers) as client:
+        for kind in ("photo", "video", "voice", "audio"):
+            result = rpc(
+                client, "tools/call", {"name": "find_media", "arguments": {"media_type": kind}}
+            ).json()["result"]
+            assert not result.get("isError")
+            messages = result["structuredContent"]["messages"]
+            assert len(messages) == 1
+            assert messages[0]["media_type"] == kind
+            assert messages[0]["media_duration"] == (12 if kind != "photo" else None)
 
 
 def test_authenticated_http_message_text_continuation(http_client):

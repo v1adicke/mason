@@ -3,6 +3,9 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+MediaType = Literal["photo", "video", "voice", "audio"]
+DOCUMENT_TYPES = {"document", "video", "video_note", "voice", "audio", "animation", "sticker"}
+
 
 class Chat(BaseModel):
     id: int
@@ -28,6 +31,9 @@ class Message(BaseModel):
     file_name: str | None = None
     mime_type: str | None = None
     file_size: int | None = None
+    media_width: int | None = None
+    media_height: int | None = None
+    media_duration: float | None = None
 
 
 class ChatPage(BaseModel):

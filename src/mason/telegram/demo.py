@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from mason.telegram.models import Chat, Message
+from mason.telegram.models import DOCUMENT_TYPES, Chat, MediaType, Message
 
 DEMO_CHAT_ID = -1001234567890
 
@@ -58,6 +58,7 @@ class DemoBackend:
         sender_id: int | None = None,
         documents_only: bool = False,
         pinned_only: bool = False,
+        media_type: MediaType | None = None,
     ) -> list[Message]:
         return [
             message
@@ -66,8 +67,9 @@ class DemoBackend:
             and (date_to is None or message.date < date_to)
             and (query is None or query.casefold() in message.text.casefold())
             and (sender_id is None or message.sender_id == sender_id)
-            and (not documents_only or message.media_type == "document")
+            and (not documents_only or message.media_type in DOCUMENT_TYPES)
             and (not pinned_only or message.pinned)
+            and (media_type is None or message.media_type == media_type)
         ][:limit]
 
     async def get_context(
