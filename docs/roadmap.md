@@ -60,7 +60,7 @@ folders still need to be configured separately; planning does not grant access t
 - [x] Find documents using filenames and captions, without downloading files
 - [x] Read a chosen date range without requiring search keywords
 - [x] Read a known message and continue long text in bounded chunks
-- [ ] Read pinned messages with bounded pagination
+- [x] Read pinned messages with bounded pagination
 - [ ] Find photos, videos, and voice/audio messages by metadata and caption
 - [ ] Improve reply navigation and distinguish reply threads from neighboring context
 - [ ] Add media-content reading only with explicit limits and a reviewed access design

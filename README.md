@@ -20,6 +20,7 @@ identity-provider account.
 | `search_messages` | Keyword search with optional chat, date, and sender filters |
 | `find_documents` | Finding attachments by caption keywords or part of their filename |
 | `get_message` | Reading a message by ID, including the rest of long text |
+| `get_pinned_messages` | Reading the current pins in one allowed chat |
 | `get_message_context` | Reading a result and the messages around it |
 | `get_recent_messages` | Catching up on recent messages or reading a chosen date range |
 
@@ -30,6 +31,10 @@ returns the identifiers for manual lookup. It does not make one up.
 `get_message` reads a known message from an allowed chat. Search snippets are still limited
 to 2,000 characters; use `next_text_offset` to read the rest in chunks. Keep the chat and
 message ID the same, and check `edited_at` because Telegram messages can change between reads.
+
+Use `get_pinned_messages` with a chat ID from `list_chats`. It returns current pins newest
+message first, with the same source metadata and text limits as search. Continue with
+`next_cursor` to read older pins. Pinning and unpinning are not exposed as tools.
 
 To search by sender, use the `sender_id` from a previous message result. The filter works with
 dates and pagination, and it stays inside the same allowed chats.

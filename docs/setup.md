@@ -134,6 +134,18 @@ it by either name instead of the owner's profile name.
 
 ## search filters
 
+Read current pinned messages with `get_pinned_messages`. The fictional demo has one pinned
+document message:
+
+```json
+{"chat_id": -1001234567890, "limit": 10}
+```
+
+The result is a normal message page, with `pinned: true` on each message. Results use the
+original message date for ordering. To continue, pass `next_cursor` to the same tool and chat.
+Pinned and recent-message cursors are separate. Messages can be unpinned while paging, so an
+empty later page is possible. Use `get_message` or `get_message_context` to open a result.
+
 Use `get_message` to open an ID from a search result. The fictional demo message with ID `2`
 can be read like this:
 

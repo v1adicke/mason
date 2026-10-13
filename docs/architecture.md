@@ -33,7 +33,7 @@ rejected. There is no public signup in Mason and no login-code tool.
 
 ## the boundaries that matter
 
-- All six tools only read. No generic RPC, shell command, send, delete, download, or mark-read tool
+- All seven tools only read. No generic RPC, shell command, send, delete, download, or mark-read tool
 - An explicit allowlist of 1–20 chats applies to every Telegram tool
 - Searching without a chat checks each allowed chat separately, never Telegram's account-wide search
 - At most 50 results per page and 10 neighbors per side of a context request
@@ -62,6 +62,12 @@ database also caches peer metadata; treat the whole file as sensitive.
 Search uses Telegram's native keyword search. It is not semantic search. Results are sorted
 newest first. `date_from` is inclusive and `date_to` is exclusive; both need a timezone offset.
 Returned dates use the configured timezone.
+
+Pinned-message reads use Telegram's native pinned filter in one allowed chat. Each call asks
+for at most `limit + 1` messages, returns at most `limit`, and binds continuation to the same
+chat and read type. The service rejects unpinned or foreign-chat results. The `pinned` flag
+is also returned by normal reads when supplied by Telegram. Pins can change during pagination;
+their order follows message date, and no pin-time ordering or snapshot is promised.
 
 Document lookup uses Telegram's document filter, then checks the displayed filename locally
 when `file_name` is supplied. Each call reads at most `limit + 1` document messages per chat.
