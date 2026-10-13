@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 MediaType = Literal["photo", "video", "voice", "audio"]
 DOCUMENT_TYPES = {"document", "video", "video_note", "voice", "audio", "animation", "sticker"}
@@ -24,6 +24,7 @@ class Message(BaseModel):
     text: str
     text_truncated: bool = False
     pinned: bool = False
+    outgoing: bool = False
     url: str | None = None
     reply_to_message_id: int | None = None
     reply_to_chat_id: int | None = None
@@ -76,3 +77,17 @@ class ReplyChain(BaseModel):
 
 class ThreadPage(MessagePage):
     root_message_id: int
+
+
+class ChatReadState(BaseModel):
+    chat_id: int
+    read_inbox_max_id: int = Field(ge=0)
+    unread_count: int = Field(ge=0)
+    unread_mark: bool = False
+    topic_based: bool = False
+
+
+class UnreadPage(MessagePage):
+    read_inbox_max_id: int
+    unread_count: int
+    unread_mark: bool

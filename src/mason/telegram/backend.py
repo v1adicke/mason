@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Protocol
 
-from mason.telegram.models import Chat, MediaType, Message
+from mason.telegram.models import Chat, ChatReadState, MediaType, Message
 
 
 class TelegramBackend(Protocol):
@@ -15,6 +15,8 @@ class TelegramBackend(Protocol):
 
     async def get_message(self, chat_id: int, message_id: int) -> Message | None: ...
 
+    async def get_read_state(self, chat_id: int) -> ChatReadState: ...
+
     async def read_messages(
         self,
         chat_id: int,
@@ -27,6 +29,7 @@ class TelegramBackend(Protocol):
         documents_only: bool = False,
         pinned_only: bool = False,
         media_type: MediaType | None = None,
+        min_id: int = 0,
     ) -> list[Message]: ...
 
     async def get_context(

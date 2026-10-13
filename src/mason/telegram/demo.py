@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from mason.telegram.models import DOCUMENT_TYPES, Chat, MediaType, Message
+from mason.telegram.models import DOCUMENT_TYPES, Chat, ChatReadState, MediaType, Message
 
 DEMO_CHAT_ID = -1001234567890
 
@@ -37,6 +37,8 @@ class DemoBackend:
         self.messages[3].reply_to_message_id = 2
         self.messages[3].reply_to_chat_id = DEMO_CHAT_ID
         self.messages[3].thread_root_message_id = 1
+        self.read_inbox_max_id = 2
+        self.unread_mark = False
 
     async def connect(self) -> None:
         pass
@@ -52,6 +54,17 @@ class DemoBackend:
             (message for message in self.messages if message.message_id == message_id), None
         )
 
+    async def get_read_state(self, chat_id: int) -> ChatReadState:
+        return ChatReadState(
+            chat_id=self.chat.id,
+            read_inbox_max_id=self.read_inbox_max_id,
+            unread_count=sum(
+                message.message_id > self.read_inbox_max_id and not message.outgoing
+                for message in self.messages
+            ),
+            unread_mark=self.unread_mark,
+        )
+
     async def read_messages(
         self,
         chat_id: int,
@@ -64,11 +77,13 @@ class DemoBackend:
         documents_only: bool = False,
         pinned_only: bool = False,
         media_type: MediaType | None = None,
+        min_id: int = 0,
     ) -> list[Message]:
         return [
             message
             for message in reversed(self.messages)
             if (not before_id or message.message_id < before_id)
+            and message.message_id > min_id
             and (date_to is None or message.date < date_to)
             and (query is None or query.casefold() in message.text.casefold())
             and (sender_id is None or message.sender_id == sender_id)

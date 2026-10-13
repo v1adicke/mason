@@ -28,6 +28,7 @@ from mason.telegram.models import (
     MessageRead,
     ReplyChain,
     ThreadPage,
+    UnreadPage,
 )
 from mason.telegram.service import ServiceError, TelegramService
 
@@ -100,6 +101,9 @@ def create_server(
             "Use get_thread_replies with a root message ID for supergroup threads. It returns "
             "replies newest first and excludes the root. Channel comments in a separate "
             "discussion group are not followed automatically. "
+            "Use get_unread_messages for incoming unread messages in one chat; it does not "
+            "mark them read. Follow cursors on empty unread pages. If another client reads "
+            "the chat, restart pagination. Topic-based unread lists are unsupported. "
             + (
                 "Demo mode: all messages are fictional test data."
                 if settings.mode == "demo"
@@ -207,6 +211,13 @@ def create_server(
     ) -> MessageRead:
         """read one message by id and continue long text in bounded chunks"""
         return await safe_read(service.get_message(chat_id, message_id, text_offset, text_limit))
+
+    @server.tool(annotations=annotations)
+    async def get_unread_messages(
+        chat_id: int, limit: Limit = 20, cursor: Cursor | None = None
+    ) -> UnreadPage:
+        """read incoming unread messages without changing Telegram read status"""
+        return await safe_read(service.get_unread_messages(chat_id, limit, cursor))
 
     @server.tool(annotations=annotations)
     async def get_reply_chain(

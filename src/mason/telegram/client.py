@@ -3,11 +3,11 @@ from datetime import datetime
 from pathlib import Path
 
 from telethon import TelegramClient, utils
-from telethon.tl import types
+from telethon.tl import functions, types
 
 from mason.config import TelegramSettings
 from mason.telegram.links import message_url
-from mason.telegram.models import Chat, MediaType, Message
+from mason.telegram.models import Chat, ChatReadState, MediaType, Message
 
 
 def message_media_type(message: types.Message | types.MessageService) -> str | None:
@@ -118,6 +118,7 @@ class TelethonBackend:
             date=message.date,
             text=message.message or "",
             pinned=bool(getattr(message, "pinned", False)),
+            outgoing=bool(message.out),
             url=message_url(chat, message.id),
             reply_to_message_id=parent_id,
             reply_to_chat_id=parent_chat_id,
@@ -141,6 +142,30 @@ class TelethonBackend:
             return None
         return self._message(chat, message)
 
+    async def get_read_state(self, chat_id: int) -> ChatReadState:
+        """read one dialog's counters without changing its read markers"""
+        entity = await self.client.get_entity(chat_id)
+        if utils.get_peer_id(entity) != chat_id:
+            raise ValueError("unexpected dialog source")
+        peer = await self.client.get_input_entity(entity)
+        result = await self.client(
+            functions.messages.GetPeerDialogsRequest(peers=[types.InputDialogPeer(peer)])
+        )
+        if len(result.dialogs) != 1:
+            raise ValueError("unexpected dialog source")
+        dialog = result.dialogs[0]
+        if not isinstance(dialog, types.Dialog) or utils.get_peer_id(dialog.peer) != chat_id:
+            raise ValueError("unexpected dialog source")
+        return ChatReadState(
+            chat_id=chat_id,
+            read_inbox_max_id=dialog.read_inbox_max_id,
+            unread_count=dialog.unread_count,
+            unread_mark=bool(dialog.unread_mark),
+            topic_based=bool(
+                getattr(entity, "forum", False) or getattr(entity, "monoforum", False)
+            ),
+        )
+
     async def read_messages(
         self,
         chat_id: int,
@@ -153,6 +178,7 @@ class TelethonBackend:
         documents_only: bool = False,
         pinned_only: bool = False,
         media_type: MediaType | None = None,
+        min_id: int = 0,
     ) -> list[Message]:
         if sum((documents_only, pinned_only, media_type is not None)) > 1:
             raise ValueError("choose one message filter")
@@ -169,6 +195,8 @@ class TelethonBackend:
                 "audio": types.InputMessagesFilterMusic,
             }
             filters["filter"] = media_filters[media_type]()
+        if min_id:
+            filters["min_id"] = min_id
         chat = await self.get_chat(chat_id)
         messages = []
         async for message in self.client.iter_messages(

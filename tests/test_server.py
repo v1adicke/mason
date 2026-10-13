@@ -48,6 +48,7 @@ def test_authenticated_http_search_and_context(http_client):
         "get_message",
         "get_reply_chain",
         "get_thread_replies",
+        "get_unread_messages",
         "get_pinned_messages",
         "get_message_context",
         "get_recent_messages",
@@ -179,6 +180,26 @@ def test_authenticated_http_reply_chain_and_thread(http_client):
         ).json()["result"]
         assert denied["isError"]
         assert "chat_not_allowed" in denied["content"][0]["text"]
+
+
+def test_authenticated_http_unread_read_does_not_change_state(http_client):
+    for _ in range(2):
+        result = rpc(
+            http_client,
+            "tools/call",
+            {"name": "get_unread_messages", "arguments": {"chat_id": DEMO_CHAT_ID}},
+        ).json()["result"]
+        assert not result.get("isError")
+        page = result["structuredContent"]
+        assert [message["message_id"] for message in page["messages"]] == [4, 3]
+        assert page["read_inbox_max_id"] == 2
+        assert page["unread_count"] == 2
+        assert not page["unread_mark"]
+    denied = rpc(
+        http_client, "tools/call", {"name": "get_unread_messages", "arguments": {"chat_id": 999}}
+    ).json()["result"]
+    assert denied["isError"]
+    assert "chat_not_allowed" in denied["content"][0]["text"]
 
 
 def test_authenticated_http_media_search(http_client):

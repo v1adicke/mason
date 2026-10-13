@@ -20,6 +20,7 @@ from mason.telegram.models import (
     MessageRead,
     ReplyChain,
     ThreadPage,
+    UnreadPage,
 )
 
 
@@ -407,6 +408,60 @@ class TelegramService:
             next_message_id=next_id,
             missing_message_id=missing_id,
             timezone=str(self.timezone),
+        )
+
+    async def get_unread_messages(
+        self, chat_id: int, limit: int = 20, cursor: str | None = None
+    ) -> UnreadPage:
+        """read incoming messages after the inbox marker without marking them read"""
+        self._check_chat(chat_id)
+        if type(limit) is not int or not 1 <= limit <= 50:
+            raise ServiceError("invalid_limit: choose between 1 and 50 messages")
+        async with self._operation():
+            state = await self.backend.get_read_state(chat_id)
+            if state.chat_id != chat_id:
+                raise ServiceError("invalid_source: unexpected dialog in the result")
+            if state.topic_based:
+                raise ServiceError(
+                    "unsupported_unread: topic-based chats need separate read markers"
+                )
+            key = self._key("unread", chat_id, state.read_inbox_max_id)
+            offset = self._decode_cursor(cursor, key, 0)
+            if type(offset) is not int or offset < 0:
+                raise ServiceError("invalid_cursor: expected an unread message offset")
+            messages = (
+                await self.backend.read_messages(
+                    chat_id, limit=limit + 1, before_id=offset, min_id=state.read_inbox_max_id
+                )
+                if state.unread_count
+                else []
+            )
+            seen = set()
+            for message in messages:
+                if (
+                    message.chat.id != chat_id
+                    or message.message_id <= state.read_inbox_max_id
+                    or (offset and message.message_id >= offset)
+                    or message.message_id in seen
+                ):
+                    raise ServiceError("invalid_source: unexpected unread message")
+                seen.add(message.message_id)
+        messages.sort(key=lambda message: message.message_id, reverse=True)
+        incoming = [message for message in messages if not message.outgoing]
+        selected = incoming[:limit]
+        next_offset = None
+        if len(incoming) > limit:
+            next_offset = selected[-1].message_id
+        elif len(messages) == limit + 1:
+            next_offset = messages[-1].message_id
+        return UnreadPage(
+            messages=self._format_messages(selected),
+            searched_chats=[chat_id],
+            timezone=str(self.timezone),
+            read_inbox_max_id=state.read_inbox_max_id,
+            unread_count=state.unread_count,
+            unread_mark=state.unread_mark,
+            next_cursor=self._encode_cursor(key, next_offset) if next_offset is not None else None,
         )
 
     async def get_thread_replies(
