@@ -46,6 +46,8 @@ def test_authenticated_http_search_and_context(http_client):
         "find_documents",
         "find_media",
         "get_message",
+        "get_reply_chain",
+        "get_thread_replies",
         "get_pinned_messages",
         "get_message_context",
         "get_recent_messages",
@@ -129,6 +131,54 @@ def test_authenticated_http_pinned_messages(http_client):
     ).json()["result"]
     assert denied["isError"]
     assert "chat_not_allowed" in denied["content"][0]["text"]
+
+
+def test_authenticated_http_reply_chain_and_thread(http_client):
+    chain = rpc(
+        http_client,
+        "tools/call",
+        {"name": "get_reply_chain", "arguments": {"chat_id": DEMO_CHAT_ID, "message_id": 4}},
+    ).json()["result"]
+    assert not chain.get("isError")
+    assert [message["message_id"] for message in chain["structuredContent"]["messages"]] == [
+        1,
+        2,
+        4,
+    ]
+    assert chain["structuredContent"]["stop_reason"] == "end"
+    first = rpc(
+        http_client,
+        "tools/call",
+        {
+            "name": "get_thread_replies",
+            "arguments": {"chat_id": DEMO_CHAT_ID, "message_id": 1, "limit": 1},
+        },
+    ).json()["result"]
+    assert not first.get("isError")
+    assert first["structuredContent"]["root_message_id"] == 1
+    assert first["structuredContent"]["messages"][0]["message_id"] == 4
+    second = rpc(
+        http_client,
+        "tools/call",
+        {
+            "name": "get_thread_replies",
+            "arguments": {
+                "chat_id": DEMO_CHAT_ID,
+                "message_id": 1,
+                "cursor": first["structuredContent"]["next_cursor"],
+            },
+        },
+    ).json()["result"]
+    assert [message["message_id"] for message in second["structuredContent"]["messages"]] == [2]
+    assert second["structuredContent"]["next_cursor"] is None
+    for tool in ("get_reply_chain", "get_thread_replies"):
+        denied = rpc(
+            http_client,
+            "tools/call",
+            {"name": tool, "arguments": {"chat_id": 999, "message_id": 1}},
+        ).json()["result"]
+        assert denied["isError"]
+        assert "chat_not_allowed" in denied["content"][0]["text"]
 
 
 def test_authenticated_http_media_search(http_client):

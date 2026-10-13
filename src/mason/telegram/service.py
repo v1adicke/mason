@@ -18,6 +18,8 @@ from mason.telegram.models import (
     MessageContext,
     MessagePage,
     MessageRead,
+    ReplyChain,
+    ThreadPage,
 )
 
 
@@ -354,6 +356,123 @@ class TelegramService:
             total_text_length=total,
             next_text_offset=end if end < total else None,
             timezone=str(self.timezone),
+        )
+
+    async def get_reply_chain(self, chat_id: int, message_id: int, limit: int = 10) -> ReplyChain:
+        """follow parent replies inside one chat with a bounded number of reads"""
+        self._check_chat(chat_id)
+        if (
+            type(message_id) is not int
+            or message_id <= 0
+            or type(limit) is not int
+            or not 1 <= limit <= 10
+        ):
+            raise ServiceError("invalid_reply_chain: use a positive ID and a limit from 1 to 10")
+        messages = []
+        seen = set()
+        current_id = message_id
+        next_id = missing_id = None
+        stop_reason = "end"
+        async with self._operation():
+            while True:
+                message = await self.backend.get_message(chat_id, current_id)
+                if message is None:
+                    if not messages:
+                        raise ServiceError("message_not_found: the starting message is unavailable")
+                    stop_reason, missing_id = "missing", current_id
+                    break
+                if message.chat.id != chat_id or message.message_id != current_id:
+                    raise ServiceError("invalid_source: unexpected message in the reply chain")
+                messages.append(message)
+                seen.add(current_id)
+                parent_id = message.reply_to_message_id
+                if parent_id is None:
+                    break
+                if message.reply_to_scheduled:
+                    stop_reason = "scheduled"
+                    break
+                if message.reply_to_chat_id not in (None, chat_id):
+                    stop_reason = "other_chat"
+                    break
+                if type(parent_id) is not int or parent_id <= 0 or parent_id in seen:
+                    raise ServiceError("invalid_source: invalid or cyclic reply chain")
+                if len(messages) == limit:
+                    stop_reason, next_id = "limit", parent_id
+                    break
+                current_id = parent_id
+        return ReplyChain(
+            messages=self._format_messages(list(reversed(messages))),
+            anchor_id=message_id,
+            stop_reason=stop_reason,
+            next_message_id=next_id,
+            missing_message_id=missing_id,
+            timezone=str(self.timezone),
+        )
+
+    async def get_thread_replies(
+        self, chat_id: int, message_id: int, limit: int = 20, cursor: str | None = None
+    ) -> ThreadPage:
+        """read a supergroup thread using its root message id"""
+        self._check_chat(chat_id)
+        if (
+            type(message_id) is not int
+            or message_id <= 0
+            or type(limit) is not int
+            or not 1 <= limit <= 50
+        ):
+            raise ServiceError("invalid_thread: use a positive root ID and a limit from 1 to 50")
+        key = self._key("thread", chat_id, message_id)
+        offset = self._decode_cursor(cursor, key, 0)
+        if type(offset) is not int or offset < 0:
+            raise ServiceError("invalid_cursor: expected a thread message offset")
+        async with self._operation():
+            chat = await self.backend.get_chat(chat_id)
+            if chat.id != chat_id:
+                raise ServiceError("invalid_source: unexpected thread chat")
+            if chat.kind != "supergroup":
+                raise ServiceError("unsupported_thread: use get_reply_chain to read parent replies")
+            anchor = await self.backend.get_message(chat_id, message_id)
+            if anchor is None:
+                raise ServiceError("message_not_found: the thread root is unavailable")
+            if anchor.chat.id != chat_id or anchor.message_id != message_id:
+                raise ServiceError("invalid_source: unexpected thread root")
+            root_id = anchor.thread_root_message_id
+            if (
+                root_id is None
+                and anchor.reply_to_chat_id in (None, chat_id)
+                and not anchor.reply_to_scheduled
+            ):
+                root_id = anchor.reply_to_message_id
+            if root_id is not None and root_id != message_id:
+                raise ServiceError(
+                    "invalid_thread: find the root with thread_root_message_id or get_reply_chain"
+                )
+            messages = await self.backend.read_replies(
+                chat_id, message_id, limit=limit + 1, before_id=offset
+            )
+            seen = set()
+            for message in messages:
+                if (
+                    message.chat.id != chat_id
+                    or message.reply_to_chat_id not in (None, chat_id)
+                    or message.reply_to_scheduled
+                    or (message.thread_root_message_id or message.reply_to_message_id) != message_id
+                    or message.message_id == message_id
+                    or message.message_id in seen
+                    or (offset and message.message_id >= offset)
+                ):
+                    raise ServiceError("invalid_source: unexpected message in the thread")
+                seen.add(message.message_id)
+        messages.sort(key=lambda message: message.message_id, reverse=True)
+        selected = messages[:limit]
+        return ThreadPage(
+            messages=self._format_messages(selected),
+            root_message_id=message_id,
+            searched_chats=[chat_id],
+            timezone=str(self.timezone),
+            next_cursor=self._encode_cursor(key, selected[-1].message_id)
+            if len(messages) > limit
+            else None,
         )
 
     async def get_message_context(

@@ -32,3 +32,7 @@ class TelegramBackend(Protocol):
     async def get_context(
         self, chat_id: int, message_id: int, before: int, after: int
     ) -> list[Message]: ...
+
+    async def read_replies(
+        self, chat_id: int, message_id: int, *, limit: int, before_id: int = 0
+    ) -> list[Message]: ...

@@ -32,6 +32,11 @@ class DemoBackend:
         self.messages[1].mime_type = "application/pdf"
         self.messages[1].file_size = 1024
         self.messages[1].pinned = True
+        self.messages[1].reply_to_message_id = 1
+        self.messages[1].reply_to_chat_id = DEMO_CHAT_ID
+        self.messages[3].reply_to_message_id = 2
+        self.messages[3].reply_to_chat_id = DEMO_CHAT_ID
+        self.messages[3].thread_root_message_id = 1
 
     async def connect(self) -> None:
         pass
@@ -79,3 +84,15 @@ class DemoBackend:
             if message.message_id == message_id:
                 return self.messages[max(0, index - before) : index + after + 1]
         return []
+
+    async def read_replies(
+        self, chat_id: int, message_id: int, *, limit: int, before_id: int = 0
+    ) -> list[Message]:
+        return [
+            message
+            for message in reversed(self.messages)
+            if (not before_id or message.message_id < before_id)
+            and (message.thread_root_message_id or message.reply_to_message_id) == message_id
+            and message.reply_to_chat_id in (None, chat_id)
+            and not message.reply_to_scheduled
+        ][:limit]

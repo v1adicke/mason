@@ -20,7 +20,15 @@ from mason.config import Settings, TelegramSettings
 from mason.http import RequestLimitMiddleware
 from mason.telegram.client import TelethonBackend
 from mason.telegram.demo import DEMO_CHAT_ID, DemoBackend
-from mason.telegram.models import ChatPage, MediaType, MessageContext, MessagePage, MessageRead
+from mason.telegram.models import (
+    ChatPage,
+    MediaType,
+    MessageContext,
+    MessagePage,
+    MessageRead,
+    ReplyChain,
+    ThreadPage,
+)
 from mason.telegram.service import ServiceError, TelegramService
 
 logger = logging.getLogger(__name__)
@@ -87,6 +95,11 @@ def create_server(
             "next_text_offset. Chunks are live reads; if edited_at changes, start again at zero. "
             "Use get_pinned_messages for current pins; they are sorted by message date, "
             "not the time they were pinned. "
+            "Neighboring context is chronological, not a reply thread. Use get_reply_chain "
+            "to follow parent replies in one chat; next_message_id continues older ancestors. "
+            "Use get_thread_replies with a root message ID for supergroup threads. It returns "
+            "replies newest first and excludes the root. Channel comments in a separate "
+            "discussion group are not followed automatically. "
             + (
                 "Demo mode: all messages are fictional test data."
                 if settings.mode == "demo"
@@ -194,6 +207,27 @@ def create_server(
     ) -> MessageRead:
         """read one message by id and continue long text in bounded chunks"""
         return await safe_read(service.get_message(chat_id, message_id, text_offset, text_limit))
+
+    @server.tool(annotations=annotations)
+    async def get_reply_chain(
+        chat_id: int,
+        message_id: MessageId,
+        limit: Annotated[int, Field(ge=1, le=10)] = 10,
+    ) -> ReplyChain:
+        """read a message and its parent replies in one chat, oldest first"""
+        return await safe_read(service.get_reply_chain(chat_id, message_id, limit))
+
+    @server.tool(annotations=annotations)
+    async def get_thread_replies(
+        chat_id: int,
+        message_id: Annotated[
+            int, Field(gt=0, description="root message id of a supergroup thread")
+        ],
+        limit: Limit = 20,
+        cursor: Cursor | None = None,
+    ) -> ThreadPage:
+        """read replies in a supergroup thread with bounded pagination"""
+        return await safe_read(service.get_thread_replies(chat_id, message_id, limit, cursor))
 
     @server.tool(annotations=annotations)
     async def get_message_context(

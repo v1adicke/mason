@@ -98,8 +98,17 @@ class TelethonBackend:
         )
 
     def _message(self, chat: Chat, message: types.Message | types.MessageService) -> Message:
+        if utils.get_peer_id(message.peer_id) != chat.id:
+            raise ValueError("unexpected message peer")
         media_type = message_media_type(message)
         file = message.file if media_type else None
+        reply = message.reply_to if isinstance(message.reply_to, types.MessageReplyHeader) else None
+        parent_id = reply.reply_to_msg_id if reply else None
+        parent_chat_id = None
+        if reply and reply.reply_to_peer_id:
+            parent_chat_id = utils.get_peer_id(reply.reply_to_peer_id)
+        elif parent_id:
+            parent_chat_id = chat.id
         return Message(
             chat=chat,
             message_id=message.id,
@@ -110,7 +119,10 @@ class TelethonBackend:
             text=message.message or "",
             pinned=bool(getattr(message, "pinned", False)),
             url=message_url(chat, message.id),
-            reply_to_message_id=message.reply_to_msg_id,
+            reply_to_message_id=parent_id,
+            reply_to_chat_id=parent_chat_id,
+            reply_to_scheduled=bool(reply and reply.reply_to_scheduled),
+            thread_root_message_id=reply.reply_to_top_id if reply else None,
             edited_at=message.edit_date,
             media_type=media_type,
             file_name=file.name[:200] if file and file.name else None,
@@ -167,6 +179,21 @@ class TelethonBackend:
             offset_date=date_to,
             from_user=sender_id,
             **filters,
+        ):
+            if isinstance(message, (types.Message, types.MessageService)):
+                messages.append(self._message(chat, message))
+        return messages
+
+    async def read_replies(
+        self, chat_id: int, message_id: int, *, limit: int, before_id: int = 0
+    ) -> list[Message]:
+        """read a supergroup thread without following channel comments elsewhere"""
+        chat = await self.get_chat(chat_id)
+        if chat.kind != "supergroup":
+            raise ValueError("reply threads require a supergroup")
+        messages = []
+        async for message in self.client.iter_messages(
+            chat_id, reply_to=message_id, limit=limit, offset_id=before_id
         ):
             if isinstance(message, (types.Message, types.MessageService)):
                 messages.append(self._message(chat, message))

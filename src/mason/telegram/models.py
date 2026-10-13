@@ -26,6 +26,9 @@ class Message(BaseModel):
     pinned: bool = False
     url: str | None = None
     reply_to_message_id: int | None = None
+    reply_to_chat_id: int | None = None
+    reply_to_scheduled: bool = False
+    thread_root_message_id: int | None = None
     edited_at: datetime | None = None
     media_type: str | None = None
     file_name: str | None = None
@@ -60,3 +63,16 @@ class MessageRead(BaseModel):
     total_text_length: int
     next_text_offset: int | None = None
     timezone: str
+
+
+class ReplyChain(BaseModel):
+    messages: list[Message]
+    anchor_id: int
+    stop_reason: Literal["end", "limit", "missing", "other_chat", "scheduled"]
+    next_message_id: int | None = None
+    missing_message_id: int | None = None
+    timezone: str
+
+
+class ThreadPage(MessagePage):
+    root_message_id: int
