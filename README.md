@@ -19,12 +19,17 @@ identity-provider account.
 | `list_chats` | Finding a chat by its title |
 | `search_messages` | Keyword search with optional chat, date, and sender filters |
 | `find_documents` | Finding attachments by caption keywords or part of their filename |
+| `get_message` | Reading a message by ID, including the rest of long text |
 | `get_message_context` | Reading a result and the messages around it |
 | `get_recent_messages` | Catching up on recent messages or reading a chosen date range |
 
 All remote reads stay inside an explicit chat allowlist. Results include the chat, author,
 date, message ID, and a source link when Telegram supports one. If there is no link, Mason
 returns the identifiers for manual lookup. It does not make one up.
+
+`get_message` reads a known message from an allowed chat. Search snippets are still limited
+to 2,000 characters; use `next_text_offset` to read the rest in chunks. Keep the chat and
+message ID the same, and check `edited_at` because Telegram messages can change between reads.
 
 To search by sender, use the `sender_id` from a previous message result. The filter works with
 dates and pagination, and it stays inside the same allowed chats.
@@ -94,7 +99,8 @@ The layout is small: `server.py` exposes the tools, `telegram/service.py` checks
 search limits, and `telegram/client.py` talks to Telegram. More on the tradeoffs in
 [the architecture notes](docs/architecture.md).
 
-Next up: a website I can use from my phone, with shared searches and computer control.
+The priority is completing Telegram's read-only MCP tools. A website I can use from my phone,
+with shared searches and computer control, comes after that.
 Mail.ru and Discord are the next read-only data sources; forwarded Outlook mail comes through
 the Mail.ru inbox. These are planned features; Telegram is what works today.
 See [the roadmap](docs/roadmap.md) and

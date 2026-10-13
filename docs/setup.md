@@ -134,6 +134,19 @@ it by either name instead of the owner's profile name.
 
 ## search filters
 
+Use `get_message` to open an ID from a search result. The fictional demo message with ID `2`
+can be read like this:
+
+```json
+{"chat_id": -1001234567890, "message_id": 2, "text_limit": 1000}
+```
+
+The response has a `message`, `text_offset`, `total_text_length`, and `next_text_offset`.
+If the next offset is present, call the same tool with that `text_offset` and the same chat
+and message IDs. It reads up to 2,000 characters per call. Each call checks access again;
+an offset does not grant access to another message. Compare `edited_at` between chunks and
+start from zero if the message changed. Reading does not mark the message as read.
+
 For a request like "what was discussed yesterday?", use `get_recent_messages` with a chat ID
 from `list_chats` and optional `date_from` and `date_to`. No keyword is needed. For example,
 this reads the fictional demo chat for January 2 in a UTC+02:00 timezone:

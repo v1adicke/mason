@@ -33,7 +33,7 @@ rejected. There is no public signup in Mason and no login-code tool.
 
 ## the boundaries that matter
 
-- All five tools only read. No generic RPC, shell command, send, delete, download, or mark-read tool
+- All six tools only read. No generic RPC, shell command, send, delete, download, or mark-read tool
 - An explicit allowlist of 1–20 chats applies to every Telegram tool
 - Searching without a chat checks each allowed chat separately, never Telegram's account-wide search
 - At most 50 results per page and 10 neighbors per side of a context request
@@ -74,6 +74,10 @@ returned message in each chat. Telegram is live: deletion, editing, and new mess
 later pages. No snapshot or exact total count is promised.
 
 Context reads actual messages before and after an anchor, rather than assuming IDs are dense.
+`get_message` reads one explicit ID from the specified allowed chat. Long text can be continued
+in chunks of at most 2,000 characters; the response includes total text length and the next
+offset. Message reads check both the chat and returned ID. Text chunks are live reads, so an
+edit or deletion can invalidate a continuation; compare `edited_at` and restart when it changes.
 It is chronological neighboring context, not an entire reply thread. Private conversations and
 basic groups have no invented message link. Channels and supergroups use supported Telegram
 links; private links still require membership. Demo data has no real source links.
@@ -92,7 +96,7 @@ Discord starts with an existing-integration check, then a bot adapter only
 if needed. Each provider has its own explicit access policy.
 
 Computer control uses a separately authorized web session and a local desktop process. It is
-outside the five current read-only MCP tools. Details, completion checks, and the order of work
+outside the current read-only MCP tools. Details, completion checks, and the order of work
 are in [the web app plan](web-app-plan.md). These parts are not implemented yet.
 
 SQLite/FTS5 search, embeddings, photo search, voice, and autonomous actions can come later.

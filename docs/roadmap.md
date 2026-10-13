@@ -1,13 +1,14 @@
 # what's next
 
-Telegram is the first working module. The next goal is a web app I can use from my phone,
-including remote control of my computer. Mail.ru and Discord follow as read-only
-data sources. Keep each step useful on its own.
+The first priority is completing Telegram's read-only MCP tools. The phone web app,
+computer control, Mail.ru, and Discord stay in the plan after that. Keep each step useful
+on its own.
 
 ## order of work
 
 | Step | What should work when it is done |
 | --- | --- |
+| 0. Telegram MCP | Read messages fully, improve source navigation, and add the remaining useful read tools |
 | 1. Web app | Sign in on the phone, search Telegram, save a query, and see the same state on the computer |
 | 2. Computer control | Use the website for desktop access and a few quick controls, with separate access rules |
 | 3. Email | Search and read Mail.ru, including forwarded mail, through Mason MCP and the website |
@@ -15,7 +16,9 @@ data sources. Keep each step useful on its own.
 | 5. Better search | Add a local text index only after actual searches show the need |
 
 The implementation and security decisions are in [the web app plan](web-app-plan.md).
-These are planned features; only the Telegram checklist below is already implemented.
+These are planned features; checked Telegram items below are already implemented.
+The first web slice is saved in a separate local branch and is not deployed: browser verification
+and the additional GitHub callback are still pending.
 
 ## web app and computer control
 
@@ -56,9 +59,15 @@ folders still need to be configured separately; planning does not grant access t
 - [x] Move the live connection to a stable address and test it from ChatGPT
 - [x] Find documents using filenames and captions, without downloading files
 - [x] Read a chosen date range without requiring search keywords
+- [x] Read a known message and continue long text in bounded chunks
+- [ ] Read pinned messages with bounded pagination
+- [ ] Find photos, videos, and voice/audio messages by metadata and caption
+- [ ] Improve reply navigation and distinguish reply threads from neighboring context
+- [ ] Add media-content reading only with explicit limits and a reviewed access design
 
 A local SQLite/FTS5 index can come after trying the keyword search in practice. Add embeddings
-only if exact search and a text index still miss useful results. Photo search and voice can wait.
+only if exact search and a text index still miss useful results. Searching media metadata is
+different from visual recognition, transcription, and attachment downloads; those come later.
 
 ## Discord
 
