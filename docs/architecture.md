@@ -33,7 +33,7 @@ rejected. There is no public signup in Mason and no login-code tool.
 
 ## the boundaries that matter
 
-- All seven tools only read. No generic RPC, shell command, send, delete, download, or mark-read tool
+- All eight tools only read. No generic RPC, shell command, send, delete, download, or mark-read tool
 - An explicit allowlist of 1–20 chats applies to every Telegram tool
 - Searching without a chat checks each allowed chat separately, never Telegram's account-wide search
 - At most 50 results per page and 10 neighbors per side of a context request
@@ -75,6 +75,17 @@ Offsets advance over scanned documents that did not match, while preserving any 
 did not fit on the returned page. Empty pages can have a continuation cursor. MIME type and
 size come from message metadata, with no download or persistent file index.
 
+Media lookup uses Telegram's native filters for
+[photos](https://core.telegram.org/constructor/inputMessagesFilterPhotos),
+[videos](https://core.telegram.org/constructor/inputMessagesFilterVideo),
+[voice notes](https://core.telegram.org/constructor/inputMessagesFilterVoice), and
+[audio](https://core.telegram.org/constructor/inputMessagesFilterMusic). The service checks
+the returned media type and applies the same bounded filename scan as document lookup.
+Each cursor binds the media type and all search filters. Durations and image dimensions
+come from metadata. Link previews are not counted as attachments. Round video notes,
+animations, and stickers have separate type labels in normal message reads; they are not
+included in `find_media`'s four categories. There is no image recognition or transcription.
+
 Across chats, each page merges bounded per-chat results. The cursor remembers the last
 returned message in each chat. Telegram is live: deletion, editing, and new messages can affect
 later pages. No snapshot or exact total count is promised.
@@ -105,4 +116,5 @@ Computer control uses a separately authorized web session and a local desktop pr
 outside the current read-only MCP tools. Details, completion checks, and the order of work
 are in [the web app plan](web-app-plan.md). These parts are not implemented yet.
 
-SQLite/FTS5 search, embeddings, photo search, voice, and autonomous actions can come later.
+SQLite/FTS5 search, embeddings, image recognition, voice control, and autonomous actions can
+come later.

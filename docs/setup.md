@@ -207,6 +207,26 @@ Filename matching checks at most `limit + 1` document messages per allowed chat 
 A page can be empty and still have a `next_cursor`; follow it with the same filters. This
 keeps each request bounded while allowing older documents to be found without a local index.
 
+Use `find_media` to find a particular kind of attachment in the allowed chats:
+
+```json
+{"media_type": "photo", "query": "trip", "limit": 5}
+```
+
+`media_type` is required: `photo`, `video`, `voice`, or `audio`. Leave out `query` to browse
+that type without caption keywords. You can combine `chat_id`, `date_from`, `date_to`,
+`sender_id`, and `file_name` just like in document lookup. A filename filter only matches
+messages that actually have a filename; photos and voice notes often do not.
+
+Results include the original message, `media_duration` in seconds, and `media_width` /
+`media_height` in pixels when available. These fields can be null. Nothing is downloaded,
+and the search does not inspect image contents or spoken words. Round video notes, GIFs,
+and stickers are not part of these four search categories.
+
+Keep all filters the same when following `next_cursor`, including the media type. Empty
+pages can still have a continuation when a filename filter is used. The fictional demo
+has a PDF but no photos, video, or audio, so its media search returns an empty page.
+
 ## restarting and revoking access
 
 After the first setup, start both processes from one terminal:
@@ -256,5 +276,5 @@ The [stable URL guide](stable-url.md) covers the optional ngrok account domain a
 - `invalid_cursor`: restart the search after changing its filters or allowed chats
 
 Do not disable authentication to troubleshoot a public endpoint. Keep using demo data until
-the connection works. Secret chats, attachment downloads, PDF content search, and photo search
-are outside this first version.
+the connection works. Secret chats, attachment downloads, PDF content search, image recognition,
+and audio transcription are outside this first version.

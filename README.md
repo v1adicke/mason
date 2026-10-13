@@ -5,8 +5,8 @@ My little AI toolkit. Starting with Telegram search over MCP.
 I want to ask ChatGPT where something was discussed, get the actual messages, and open the
 source. Mason handles the Telegram side; ChatGPT handles the conversation.
 
-The first version is read-only: keyword search, document lookup, recent messages, and a bit of
-context around a result. Semantic search and photos can wait until the basics work.
+The first version is read-only: keyword search, document and media lookup, recent messages,
+and a bit of context around a result. Semantic search and image recognition can wait.
 
 Built with Python 3.12+, Telethon, and the official MCP SDK. One app, no extra search database yet.
 FastMCP's OAuth bridge handles GitHub sign-in, so the first trial does not need a separate
@@ -19,6 +19,7 @@ identity-provider account.
 | `list_chats` | Finding a chat by its title |
 | `search_messages` | Keyword search with optional chat, date, and sender filters |
 | `find_documents` | Finding attachments by caption keywords or part of their filename |
+| `find_media` | Finding photos, videos, voice notes, or audio by type and caption |
 | `get_message` | Reading a message by ID, including the rest of long text |
 | `get_pinned_messages` | Reading the current pins in one allowed chat |
 | `get_message_context` | Reading a result and the messages around it |
@@ -47,6 +48,11 @@ when following `next_cursor`.
 Document lookup returns the filename, MIME type, size in bytes, and the original message.
 It reads metadata and captions; file contents stay in Telegram. An empty document page can
 still have a `next_cursor`, so keep paging before deciding that nothing matched.
+
+For media, choose `photo`, `video`, `voice`, or `audio`. Add caption keywords, a filename,
+or chat, date, and sender filters when useful. Results include duration in seconds and image
+dimensions when available. Photos and voice notes often have no filename. This finds the
+original message; it does not download files, recognize pictures, or transcribe audio.
 
 ## try it
 
