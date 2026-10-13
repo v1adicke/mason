@@ -159,6 +159,39 @@ and message IDs. It reads up to 2,000 characters per call. Each call checks acce
 an offset does not grant access to another message. Compare `edited_at` between chunks and
 start from zero if the message changed. Reading does not mark the message as read.
 
+For parent replies, use `get_reply_chain`. The demo message `4` replies to `2`, which replies
+to `1`; message `3` is unrelated:
+
+```json
+{"chat_id": -1001234567890, "message_id": 4, "limit": 10}
+```
+
+The result includes the starting message and its parents, oldest first. The limit counts
+all returned messages, including the starting one. `stop_reason` is `end`, `limit`, `missing`,
+`other_chat`, or `scheduled`. If there is a `next_message_id`, call the same tool with it in
+the same chat and place that older page before the previous one. A missing parent has a
+`missing_message_id`; it may have been deleted. Cross-chat and scheduled replies are not
+followed. Search results now include `reply_to_chat_id` so a foreign reply ID cannot be
+mistaken for an ID in the current chat.
+
+For a supergroup's forward replies, use `get_thread_replies` with the root message ID:
+
+```json
+{"chat_id": -1001234567890, "message_id": 1, "limit": 1}
+```
+
+The demo returns message `4`, followed by `2` on the next page. Keep the same chat and root
+when passing `next_cursor`. The root is excluded, and nested replies are included. Use the
+`thread_root_message_id` from a known reply, or the parent chain, to find the root.
+`get_message_context` continues to read chronological neighbors, which can include unrelated
+messages.
+
+Private chats, Saved Messages, and basic groups support parent-chain navigation but not this
+thread-list tool. Broadcast-channel comments live in a separate discussion group; allow and
+select that group explicitly, then use a root ID from that group. Mason does not resolve or
+follow the channel-to-discussion-group mapping automatically. Thread pages are live reads;
+deletion or editing can change later pages.
+
 For a request like "what was discussed yesterday?", use `get_recent_messages` with a chat ID
 from `list_chats` and optional `date_from` and `date_to`. No keyword is needed. For example,
 this reads the fictional demo chat for January 2 in a UTC+02:00 timezone:
@@ -274,6 +307,7 @@ The [stable URL guide](stable-url.md) covers the optional ngrok account domain a
 - `chat_not_allowed`: choose a chat from the MCP `list_chats` tool
 - `telegram_unavailable`: check the session, network, and chat access locally
 - `invalid_cursor`: restart the search after changing its filters or allowed chats
+- `unsupported_thread`: use parent-chain navigation, or select an allowed supergroup
 
 Do not disable authentication to troubleshoot a public endpoint. Keep using demo data until
 the connection works. Secret chats, attachment downloads, PDF content search, image recognition,

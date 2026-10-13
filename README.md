@@ -21,6 +21,8 @@ identity-provider account.
 | `find_documents` | Finding attachments by caption keywords or part of their filename |
 | `find_media` | Finding photos, videos, voice notes, or audio by type and caption |
 | `get_message` | Reading a message by ID, including the rest of long text |
+| `get_reply_chain` | Following the messages a result was replying to |
+| `get_thread_replies` | Reading replies in a supergroup thread |
 | `get_pinned_messages` | Reading the current pins in one allowed chat |
 | `get_message_context` | Reading a result and the messages around it |
 | `get_recent_messages` | Catching up on recent messages or reading a chosen date range |
@@ -32,6 +34,17 @@ returns the identifiers for manual lookup. It does not make one up.
 `get_message` reads a known message from an allowed chat. Search snippets are still limited
 to 2,000 characters; use `next_text_offset` to read the rest in chunks. Keep the chat and
 message ID the same, and check `edited_at` because Telegram messages can change between reads.
+
+`get_reply_chain` follows parent replies in the same chat and returns up to 10 messages,
+oldest first. It explains whether the chain ended, hit the limit, or reached an unavailable
+parent. Use `next_message_id` to continue older parents. It stops at replies to another chat
+or a scheduled message.
+
+`get_thread_replies` reads replies in a supergroup, newest first, using the thread's root
+message ID. Use `thread_root_message_id` from a result when available, or follow the parent
+chain to find it. The root itself is not repeated in the reply pages. Nearby context is still
+available separately; messages next to each other are not necessarily part of one discussion.
+Channel comments in a linked group need that group to be allowed and selected explicitly.
 
 Use `get_pinned_messages` with a chat ID from `list_chats`. It returns current pins newest
 message first, with the same source metadata and text limits as search. Continue with

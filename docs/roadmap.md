@@ -62,7 +62,7 @@ folders still need to be configured separately; planning does not grant access t
 - [x] Read a known message and continue long text in bounded chunks
 - [x] Read pinned messages with bounded pagination
 - [x] Find photos, videos, and voice/audio messages by metadata and caption
-- [ ] Improve reply navigation and distinguish reply threads from neighboring context
+- [x] Follow parent replies and read supergroup threads separately from neighboring context
 - [ ] Add media-content reading only with explicit limits and a reviewed access design
 
 A local SQLite/FTS5 index can come after trying the keyword search in practice. Add embeddings

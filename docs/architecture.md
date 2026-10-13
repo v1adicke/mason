@@ -33,7 +33,7 @@ rejected. There is no public signup in Mason and no login-code tool.
 
 ## the boundaries that matter
 
-- All eight tools only read. No generic RPC, shell command, send, delete, download, or mark-read tool
+- All ten tools only read. No generic RPC, shell command, send, delete, download, or mark-read tool
 - An explicit allowlist of 1–20 chats applies to every Telegram tool
 - Searching without a chat checks each allowed chat separately, never Telegram's account-wide search
 - At most 50 results per page and 10 neighbors per side of a context request
@@ -93,13 +93,31 @@ later pages. No snapshot or exact total count is promised.
 Context reads actual messages before and after an anchor, rather than assuming IDs are dense.
 `get_message` reads one explicit ID from the specified allowed chat. Long text can be continued
 in chunks of at most 2,000 characters; the response includes total text length and the next
-offset. Message reads check both the chat and returned ID. Text chunks are live reads, so an
+offset. Message reads check both the chat and returned ID. The backend also checks Telegram's
+actual message peer before assigning a chat to a result. Text chunks are live reads, so an
 edit or deletion can invalidate a continuation; compare `edited_at` and restart when it changes.
 It is chronological neighboring context, not an entire reply thread. Private conversations and
 basic groups have no invented message link. Channels and supergroups use supported Telegram
 links; private links still require membership. Demo data has no real source links.
 Telegram service events can have empty text and `kind=service`; they still count as real
 neighbors and do not prematurely end a page.
+
+Reply-chain reads fetch one parent at a time in the same chat, with at most 10 message reads
+inside one 30-second operation. They return the oldest fetched parent first and a continuation
+ID when more parents remain. Deleted parents produce a partial chain with `stop_reason=missing`.
+Cross-chat and scheduled replies stop traversal even if the other chat is allowed. Cycles and
+unexpected sources are rejected. The tools never treat a reply ID as an instruction to widen
+the allowlist.
+
+Thread pages use [Telegram's reply API](https://core.telegram.org/method/messages.getReplies)
+in a specified supergroup. Channel posts can lead to a different discussion group, so this
+tool rejects broadcast channels, private chats, and basic groups before reading replies.
+The caller supplies a root ID; the service checks the root and each reply's chat and thread
+metadata. Each page reads at most `limit + 1` replies, excludes the root, and binds its cursor
+to the chat and root ID. Nested replies stay in the same
+[Telegram thread](https://core.telegram.org/api/threads). Results are ordered by message ID,
+newest first. No thread is marked as read, and no private-chat history scan is used to guess
+which messages might be replies.
 
 ## planned web app and new services
 
