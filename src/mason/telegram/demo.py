@@ -41,6 +41,11 @@ class DemoBackend:
     async def get_chat(self, chat_id: int) -> Chat:
         return self.chat
 
+    async def get_message(self, chat_id: int, message_id: int) -> Message | None:
+        return next(
+            (message for message in self.messages if message.message_id == message_id), None
+        )
+
     async def read_messages(
         self,
         chat_id: int,

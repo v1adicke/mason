@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 from telethon.errors import FloodWaitError, RPCError
 
 from mason.telegram.backend import TelegramBackend
-from mason.telegram.models import ChatPage, Message, MessageContext, MessagePage
+from mason.telegram.models import ChatPage, Message, MessageContext, MessagePage, MessageRead
 
 
 class ServiceError(Exception):
@@ -251,6 +251,42 @@ class TelegramService:
             if len(matches) > limit or more_documents
             else None,
             searched_chats=chat_ids,
+            timezone=str(self.timezone),
+        )
+
+    async def get_message(
+        self, chat_id: int, message_id: int, text_offset: int = 0, text_limit: int = 2000
+    ) -> MessageRead:
+        """read one message in bounded text chunks without changing the source"""
+        self._check_chat(chat_id)
+        if (
+            type(message_id) is not int
+            or message_id <= 0
+            or type(text_offset) is not int
+            or not 0 <= text_offset <= 1000000
+            or type(text_limit) is not int
+            or not 1 <= text_limit <= 2000
+        ):
+            raise ServiceError("invalid_message_read: check the ID, text offset, and limit")
+        async with self._operation():
+            message = await self.backend.get_message(chat_id, message_id)
+        if message is None:
+            raise ServiceError("message_not_found: it may have been deleted or become unavailable")
+        if message.chat.id != chat_id or message.message_id != message_id:
+            raise ServiceError("invalid_source: unexpected message in the result")
+        total = len(message.text)
+        if text_offset and text_offset >= total:
+            raise ServiceError("invalid_text_offset: the message may have changed; start at zero")
+        end = min(text_offset + text_limit, total)
+        chunk = message.model_copy(update={"text": message.text[text_offset:end]})
+        formatted = self._format_messages([chunk])[0].model_copy(
+            update={"text_truncated": text_offset > 0 or end < total}
+        )
+        return MessageRead(
+            message=formatted,
+            text_offset=text_offset,
+            total_text_length=total,
+            next_text_offset=end if end < total else None,
             timezone=str(self.timezone),
         )
 

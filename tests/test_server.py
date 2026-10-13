@@ -44,6 +44,7 @@ def test_authenticated_http_search_and_context(http_client):
         "list_chats",
         "search_messages",
         "find_documents",
+        "get_message",
         "get_message_context",
         "get_recent_messages",
     }
@@ -100,6 +101,41 @@ def test_authenticated_http_document_lookup(http_client):
     assert files[0]["file_name"] == "discrete_maths.pdf"
     assert files[0]["mime_type"] == "application/pdf"
     assert files[0]["file_size"] == 1024
+
+
+def test_authenticated_http_message_text_continuation(http_client):
+    first = rpc(
+        http_client,
+        "tools/call",
+        {
+            "name": "get_message",
+            "arguments": {"chat_id": DEMO_CHAT_ID, "message_id": 2, "text_limit": 5},
+        },
+    ).json()["result"]
+    assert not first.get("isError")
+    content = first["structuredContent"]
+    assert content["message"]["text"] == "The h"
+    assert content["next_text_offset"] == 5
+    second = rpc(
+        http_client,
+        "tools/call",
+        {
+            "name": "get_message",
+            "arguments": {"chat_id": DEMO_CHAT_ID, "message_id": 2, "text_offset": 5},
+        },
+    ).json()["result"]
+    assert second["structuredContent"]["message"]["text"].startswith("omework PDF")
+    assert second["structuredContent"]["next_text_offset"] is None
+    forbidden = rpc(
+        http_client,
+        "tools/call",
+        {
+            "name": "get_message",
+            "arguments": {"chat_id": 999, "message_id": 2},
+        },
+    ).json()["result"]
+    assert forbidden["isError"]
+    assert "chat_not_allowed" in forbidden["content"][0]["text"]
 
 
 def test_authenticated_http_recent_messages_by_date(http_client):

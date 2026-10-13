@@ -20,7 +20,7 @@ from mason.config import Settings, TelegramSettings
 from mason.http import RequestLimitMiddleware
 from mason.telegram.client import TelethonBackend
 from mason.telegram.demo import DEMO_CHAT_ID, DemoBackend
-from mason.telegram.models import ChatPage, MessageContext, MessagePage
+from mason.telegram.models import ChatPage, MessageContext, MessagePage, MessageRead
 from mason.telegram.service import ServiceError, TelegramService
 
 logger = logging.getLogger(__name__)
@@ -82,6 +82,8 @@ def create_server(
             "not file contents. Use get_recent_messages to read a date range without keywords. "
             "Date bounds need timezone offsets; date_from is inclusive and date_to is exclusive. "
             f"The configured timezone is {settings.timezone}. "
+            "Use get_message to read a referenced message or continue shortened text with "
+            "next_text_offset. Chunks are live reads; if edited_at changes, start again at zero. "
             + (
                 "Demo mode: all messages are fictional test data."
                 if settings.mode == "demo"
@@ -147,6 +149,16 @@ def create_server(
                 query, chat_id, date_from, date_to, limit, cursor, sender_id, file_name
             )
         )
+
+    @server.tool(annotations=annotations)
+    async def get_message(
+        chat_id: int,
+        message_id: MessageId,
+        text_offset: Annotated[int, Field(ge=0, le=1000000)] = 0,
+        text_limit: Annotated[int, Field(ge=1, le=2000)] = 2000,
+    ) -> MessageRead:
+        """read one message by id and continue long text in bounded chunks"""
+        return await safe_read(service.get_message(chat_id, message_id, text_offset, text_limit))
 
     @server.tool(annotations=annotations)
     async def get_message_context(

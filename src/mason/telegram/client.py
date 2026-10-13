@@ -101,6 +101,14 @@ class TelethonBackend:
             file_size=message.file.size if message.file else None,
         )
 
+    async def get_message(self, chat_id: int, message_id: int) -> Message | None:
+        """read one message from the specified chat"""
+        chat = await self.get_chat(chat_id)
+        message = await self.client.get_messages(chat_id, ids=message_id)
+        if not isinstance(message, (types.Message, types.MessageService)):
+            return None
+        return self._message(chat, message)
+
     async def read_messages(
         self,
         chat_id: int,

@@ -45,3 +45,11 @@ class MessageContext(BaseModel):
     messages: list[Message]
     anchor_id: int
     timezone: str
+
+
+class MessageRead(BaseModel):
+    message: Message
+    text_offset: int
+    total_text_length: int
+    next_text_offset: int | None = None
+    timezone: str

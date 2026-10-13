@@ -13,6 +13,8 @@ class TelegramBackend(Protocol):
 
     async def get_chat(self, chat_id: int) -> Chat: ...
 
+    async def get_message(self, chat_id: int, message_id: int) -> Message | None: ...
+
     async def read_messages(
         self,
         chat_id: int,
