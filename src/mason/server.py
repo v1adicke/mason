@@ -268,7 +268,24 @@ def create_app(settings: Settings, **kwargs):
     public = urlsplit(settings.public_url)
     verifier = kwargs.pop("verifier", None) or create_auth(settings)
     oauth_routes = verifier.provider.get_routes("/mcp")
-    server = create_server(settings, verifier=verifier, **kwargs)
+    gateway = None
+    gateway_auth = {}
+    if settings.mode == "gateway":
+        from mason.gateway import Gateway
+
+        gateway = Gateway.from_file(settings.upstreams_file)
+        server = gateway.server()
+        gateway_auth = {
+            "token_verifier": verifier,
+            "auth": AuthSettings(
+                issuer_url=AnyHttpUrl(settings.origin),
+                resource_server_url=AnyHttpUrl(settings.public_url),
+                required_scopes=[READ_SCOPE],
+                validate_token_resource=True,
+            ),
+        }
+    else:
+        server = create_server(settings, verifier=verifier, **kwargs)
     app = server.streamable_http_app(
         stateless_http=True,
         json_response=True,
@@ -281,7 +298,18 @@ def create_app(settings: Settings, **kwargs):
                 "http://127.0.0.1:*",
             ],
         ),
+        **gateway_auth,
     )
+
+    if gateway is not None:
+        original_lifespan = app.router.lifespan_context
+
+        @asynccontextmanager
+        async def gateway_lifespan(application):
+            async with gateway.connect(), original_lifespan(application) as state:
+                yield state
+
+        app.router.lifespan_context = gateway_lifespan
 
     async def health(request):
         return JSONResponse({"status": "ok"})

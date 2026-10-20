@@ -102,6 +102,15 @@ def doctor(*, network: bool = False) -> bool:
             print("not ready: check the local session permissions and allowed chats")
             return False
         print("Telegram session file and allowlist: ready")
+    elif settings.mode == "gateway":
+        from mason.gateway import Gateway
+
+        try:
+            gateway = Gateway.from_file(settings.upstreams_file)
+        except (ValueError, OSError):
+            print("not ready: check the private MCP upstream configuration")
+            return False
+        print(f"MCP adapter configuration: ready ({len(gateway.servers)} upstreams)")
     else:
         print("data source: fictional demo messages")
     if network:

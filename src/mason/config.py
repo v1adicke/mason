@@ -12,7 +12,10 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="MASON_", env_file=".env", extra="ignore")
 
-    mode: Literal["demo", "telegram"] = "demo"
+    mode: Literal["demo", "telegram", "gateway"] = "demo"
+    upstreams_file: Path = Field(
+        default_factory=lambda: Path.home() / ".config/mason/upstreams.json"
+    )
     public_url: str
     github_client_id: str = Field(min_length=1)
     github_client_secret: SecretStr = Field(min_length=12)

@@ -1,5 +1,12 @@
 # Mason
 
+Mason can also act as an authenticated adapter for ready-made MCP servers over stdio or
+HTTP. This is the active Telegram setup: the upstream supplies the tools, while Mason
+keeps the existing ChatGPT connection and owner-only OAuth. See [gateway mode](docs/mcp-gateway.md).
+
+The sections below describe the original built-in Telegram backend. Its chat allowlist
+does not apply to gateway mode; each upstream has its own access rules.
+
 My little AI toolkit. Starting with Telegram search over MCP.
 
 I want to ask ChatGPT where something was discussed, get the actual messages, and open the
