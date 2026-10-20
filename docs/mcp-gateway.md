@@ -85,12 +85,16 @@ dependency audit found no known vulnerabilities on 20 October 2026. Real reads,
 path traversal refusal and write-tool refusal were verified before activation.
 
 Discord's `mcp-discord-bridge` 1.2.0 is installed and checked in read-only mode;
-its ten read tools and write refusal were verified without credentials. It is
-not active until a Discord bot is authorized. `discord-upstream.json` and
-`discord-launch.cjs` in the same private runtime directory prepare its sandbox.
+its ten read tools and write refusal were verified. The Mason Reader bot token
+is saved locally and its identity was checked against the expected application.
+The Discord upstream is active; OAuth discovery, anonymous refusal and a real
+authenticated ChatGPT call to the existing filesystem tools still pass.
+At activation the bot had no joined servers, so message history remains untested
+until the owner completes the Discord invitation. ChatGPT needs Refresh tools
+to load the ten new tools. `discord-upstream.json` and `discord-launch.cjs`
+in the same private runtime directory define its sandbox.
 The token mount is `~/.config/mason/discord-token`, permissions 600; the token
-is read inside the sandbox and never included in process arguments. Add this
-upstream to the active configuration only after validating the bot connection.
+is read inside the sandbox and never included in process arguments.
 Discord uses a bot's server/channel access, not the personal account's full DMs.
 The bundled search checks the most recent 100 channel messages; page through
 history for older material instead of presenting it as complete history search.
