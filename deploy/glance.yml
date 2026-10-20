@@ -1,0 +1,55 @@
+server:
+  host: 127.0.0.1
+  port: 8087
+
+branding:
+  app-name: Mason
+
+theme:
+  background-color: 225 20 10
+  primary-color: 190 75 65
+  contrast-multiplier: 1.1
+
+pages:
+  - name: Home
+    width: wide
+    columns:
+      - size: small
+        widgets:
+          - type: clock
+            hour-format: 24h
+          - type: weather
+            location: ${MASON_WEATHER_LOCATION}
+            units: metric
+            hour-format: 24h
+          - type: calendar
+            first-day-of-week: monday
+      - size: full
+        widgets:
+          - type: bookmarks
+            title: Mason
+            groups:
+              - title: Talk and explore
+                links:
+                  - title: Assistant
+                    url: http://127.0.0.1:18789/
+                  - title: World map
+                    url: https://www.worldmonitor.app/
+                  - title: ChatGPT
+                    url: https://chatgpt.com/
+                  - title: YouTube
+                    url: https://www.youtube.com/
+                  - title: Spotify
+                    url: https://open.spotify.com/
+          - type: rss
+            title: World news
+            limit: 8
+            collapse-after: 5
+            cache: 30m
+            feeds:
+              - url: https://feeds.bbci.co.uk/news/world/rss.xml
+                title: BBC World
+          - type: hacker-news
+            title: Tech
+            limit: 6
+            collapse-after: 3

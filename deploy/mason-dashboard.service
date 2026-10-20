@@ -1,0 +1,19 @@
+[Unit]
+Description=Mason home dashboard
+After=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/mason/dashboard.env
+ExecStart=%h/.local/share/mason-dashboard/glance --config %h/.config/mason/glance.yml
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+MemoryMax=256M
+
+[Install]
+WantedBy=default.target

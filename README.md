@@ -1,5 +1,14 @@
 # Mason
 
+My personal assistant setup. The plan now is to connect useful, existing MCP servers
+and apps rather than build every integration myself. Voice, browser control, and a
+home dashboard come next, with Linux today and macOS later.
+
+The first dashboard runs on [localhost:8087](http://127.0.0.1:8087/). It uses Glance
+for weather, news, and shortcuts, with World Monitor as a separate world map.
+See [the assistant setup](docs/assistant-setup.md) for what's installed and what still
+needs a real test.
+
 Mason can also act as an authenticated adapter for ready-made MCP servers over stdio or
 HTTP. This is the active Telegram setup: the upstream supplies the tools, while Mason
 keeps the existing ChatGPT connection and owner-only OAuth. See [gateway mode](docs/mcp-gateway.md).
@@ -136,9 +145,7 @@ The layout is small: `server.py` exposes the tools, `telegram/service.py` checks
 search limits, and `telegram/client.py` talks to Telegram. More on the tradeoffs in
 [the architecture notes](docs/architecture.md).
 
-The priority is completing Telegram's read-only MCP tools. A website I can use from my phone,
-with shared searches and computer control, comes after that.
-Mail.ru and Discord are the next read-only data sources; forwarded Outlook mail comes through
-the Mail.ru inbox. These are planned features; Telegram is what works today.
-See [the roadmap](docs/roadmap.md) and
-[the web app plan](docs/web-app-plan.md).
+The priority is a useful voice assistant built around existing tools. The original
+Telegram backend stays available, while gateway mode handles the ready-made integrations.
+Mail.ru, Discord, and phone access stay in [the roadmap](docs/roadmap.md).
+The older [custom web app plan](docs/web-app-plan.md) is background material for now.

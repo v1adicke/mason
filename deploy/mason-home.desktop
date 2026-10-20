@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Mason Home
+Comment=Weather, news, and shortcuts for Mason
+Exec=xdg-open http://127.0.0.1:8087/
+Icon=applications-internet
+Terminal=false
+Categories=Utility;
+Actions=WorldMap;
+
+[Desktop Action WorldMap]
+Name=World map
+Exec=xdg-open https://www.worldmonitor.app/
